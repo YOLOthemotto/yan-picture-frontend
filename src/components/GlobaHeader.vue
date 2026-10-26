@@ -43,13 +43,15 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { h, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import { HomeOutlined, LogoutOutlined } from '@ant-design/icons-vue'
 import { type MenuProps, message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
-import { logoutUsingPost } from '@/api/userController.ts'
-const items = ref<MenuProps['items']>([
+import { loginUsingPost, logoutUsingPost } from '@/api/userController.ts'
+
+// 原始菜单项
+const originItems = [
   {
     key: '/',
     icon: () => h(HomeOutlined),
@@ -57,16 +59,35 @@ const items = ref<MenuProps['items']>([
     title: '主页',
   },
   {
-    key: '/about',
-    label: '关于',
-    title: '关于',
+    key: '/admin/userManager',
+    label: '用户管理',
+    title: '用户管理',
   },
   {
     key: '/other',
     label: h('a', { href: 'https://www.baidu.com', target: '_blank' }, '其他'),
     title: '其他',
   },
-])
+]
+
+// 根据权限过滤菜单项
+const filterMenus = (menus = [] as MenuProps['items']) => {
+  return menus?.filter((menu) => {
+    if (menu?.key?.startsWith('/admin')) {
+      const loginUser = loginUserStore.loginUser
+      if (!loginUser || loginUser.userRole !== 'admin') {
+        return false
+      }
+    }
+    return true
+  })
+}
+
+// 展示在菜单的路由数组
+const items = computed(() => {
+  return filterMenus(originItems)
+})
+
 const router = useRouter() // 获取路由实例
 
 // 当前选中的菜单项
@@ -93,7 +114,7 @@ const doLogout = async () => {
     message.success(res.data.message)
     router.push({ path: '/user/login', replace: true })
   } else {
-    message.error("退出登录失败：" + res.data.message)
+    message.error('退出登录失败：' + res.data.message)
   }
 }
 </script>
