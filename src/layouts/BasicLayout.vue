@@ -36,12 +36,35 @@ import GlobaHeader from '@/components/GlobaHeader.vue'
 }
 
 #basicLayout .footer {
-  background-color: #efefef;
-  padding: 16px;
+  background-color: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.04);
+  padding: 14px 20px;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   text-align: center;
+}
+
+#basicLayout .footer a {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+#basicLayout .footer a:hover {
+  color: #0958d9;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+#basicLayout .footer a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #0958d9;
+  outline-offset: 3px;
 }
 </style>

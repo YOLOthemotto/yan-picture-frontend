@@ -1,0 +1,209 @@
+<template>
+  <div id="PictureMangerPage">
+    <!-- 搜索框 -->
+    <a-form layout="inline" :model="searchParams" @finish="doSearch">
+      <a-form-item name="searchText" label="关键词">
+        <a-input
+          v-model:value="searchParams.searchText"
+          placeholder="从名称和简介搜索"
+          allow-clear
+        />
+      </a-form-item>
+      <a-form-item name="category" label="类型">
+        <a-input v-model:value="searchParams.category" placeholder="请输入类型" allow-clear />
+      </a-form-item>
+      <a-form-item>
+        <a-select
+          v-model:value="searchParams.tags"
+          mode="tags"
+          placeholder="请选择标签"
+          style="min-width: 180px"
+          allow-clear
+        />
+      </a-form-item>
+      <a-form-item>
+        <a-button type="primary" html-type="submit">搜索</a-button>
+      </a-form-item>
+    </a-form>
+    <div style="margin-bottom: 16px" />
+    <!-- 表格 -->
+    <a-table
+      :columns="columns"
+      :data-source="dataList"
+      :pagination="pagination"
+      @change="doTableChange"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.dataIndex === 'url'">
+          <a-image :src="record.url" width="50px" />
+        </template>
+        <template v-if="column.dataIndex === 'tags'">
+          <a-space>
+            <a-tag v-for="tag in JSON.parse(record.tags || '[]')" :key="tag">{{ tag }}</a-tag>
+          </a-space>
+        </template>
+        <template v-if="column.dataIndex === 'picInfo'">
+          <div>格式：{{ record.picFormat }}</div>
+          <div>宽度：{{ record.picWidth }}</div>
+          <div>高度：{{ record.picHeight }}</div>
+          <div>宽高比：{{ record.picScale }}</div>
+          <div>大小：{{ (record.picSize / 1024).toFixed(2) }}KB</div>
+        </template>
+        <template v-if="column.dataIndex === 'createTime'">
+          {{ dayjs(record.createTime).format('YYYY-MM-DD HH:mm:ss') }}
+        </template>
+        <template v-if="column.dataIndex === 'editTime'">
+          {{ dayjs(record.editTime).format('YYYY-MM-DD HH:mm:ss') }}
+        </template>
+        <template v-else-if="column.key === 'action'">
+          <a-space style="justify-content: center; width: 100%">
+            <a-button type="link" :href="`/add_picture?id=${record.id}`" target="_blank">
+              编辑
+            </a-button>
+            <a-button type="link" danger @click="doDelete(record.id)"> 删除 </a-button>
+          </a-space>
+        </template>
+      </template>
+    </a-table>
+  </div>
+</template>
+<script lang="ts" setup>
+import { computed, onMounted, reactive, ref } from 'vue'
+import { deletePictureUsingPost, listPictureByPageUsingPost } from '@/api/PictureController.ts'
+import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
+const columns = [
+  {
+    title: 'id',
+    dataIndex: 'id',
+    width: 80,
+    align: 'center',
+  },
+  {
+    title: '图片',
+    dataIndex: 'url',
+    align: 'center',
+  },
+  {
+    title: '名称',
+    dataIndex: 'name',
+    align: 'center',
+  },
+  {
+    title: '简介',
+    dataIndex: 'introduction',
+    ellipsis: true,
+    align: 'center',
+  },
+  {
+    title: '类型',
+    dataIndex: 'category',
+    align: 'center',
+  },
+  {
+    title: '标签',
+    dataIndex: 'tags',
+    align: 'center',
+  },
+  {
+    title: '图片信息',
+    dataIndex: 'picInfo',
+    align: 'center',
+  },
+  {
+    title: '用户Id',
+    dataIndex: 'userId',
+    width: 80,
+  },
+  // {
+  //   title: '空间 id',
+  //   dataIndex: 'spaceId',
+  //   width: 80,
+  // },
+  // {
+  //   title: '审核信息',
+  //   dataIndex: 'reviewMessage',
+  // },
+  {
+    title: '创建时间',
+    dataIndex: 'createTime',
+    align: 'center',
+  },
+  {
+    title: '编辑时间',
+    dataIndex: 'editTime',
+    align: 'center',
+  },
+  {
+    title: '操作',
+    key: 'action',
+    align: 'center',
+  },
+]
+
+//定义数据
+const dataList = ref<API.Picture[]>([])
+const total = ref(0)
+
+// 搜索条件
+const searchParams = reactive<API.PictureQueryRequest>({
+  current: 1,
+  pageSize: 10,
+  sortField: 'createTime',
+  sortOrder: 'descend',
+})
+
+// 获取数据
+const fetchData = async () => {
+  const res = await listPictureByPageUsingPost({ ...searchParams })
+  if (res.data.code === 0 && res.data.data) {
+    dataList.value = res.data.data.records ?? []
+    total.value = res.data.data.total ?? 0
+  } else {
+    message.error(res.data.message)
+  }
+}
+
+//页面加载时加载一次数据
+onMounted(() => {
+  fetchData()
+})
+
+//分页参数
+const pagination = computed(() => {
+  return {
+    current: searchParams.current,
+    pageSize: searchParams.pageSize,
+    total: total.value,
+    showSizeChanger: true,
+    showTotal: (total: number) => `共 ${total} 条数据`,
+  }
+})
+
+// 表格分页变化
+const doTableChange = (page: any) => {
+  searchParams.current = page.current
+  searchParams.pageSize = page.pageSize
+  fetchData()
+}
+
+// 搜索数据
+const doSearch = () => {
+  searchParams.current = 1
+  fetchData()
+}
+
+// 删除数据
+const doDelete = async (id: number) => {
+  if (!id) {
+    return
+  }
+  const res = await deletePictureUsingPost({ id })
+  if (res.data.code === 0) {
+    message.success('删除成功')
+    fetchData()
+  } else {
+    message.error(res.data.message)
+  }
+}
+</script>

@@ -59,9 +59,19 @@ const originItems = [
     title: '主页',
   },
   {
+    key: '/add_picture',
+    label: '创建图片',
+    title: '创建图片',
+  },
+  {
     key: '/admin/userManager',
     label: '用户管理',
     title: '用户管理',
+  },
+  {
+    key: '/admin/pictureManager',
+    label: '图片管理',
+    title: '图片管理',
   },
   {
     key: '/other',
@@ -92,7 +102,7 @@ const router = useRouter() // 获取路由实例
 
 // 当前选中的菜单项
 const current = ref<string[]>([])
-router.afterEach((to, from, failure) => {
+router.afterEach((to) => {
   current.value = [to.path]
 })
 

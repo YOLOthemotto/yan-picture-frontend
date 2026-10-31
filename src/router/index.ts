@@ -13,17 +13,33 @@ const router = createRouter({
     {
       path: '/user/login',
       name: '用户登录',
-      component: UserLoginPage
+      component: UserLoginPage,
     },
     {
       path: '/user/register',
       name: '用户注册',
-      component: () => import('@/pages/user/UserRegisterPage.vue')
+      component: () => import('@/pages/user/UserRegisterPage.vue'),
     },
     {
       path: '/admin/userManager',
       name: '用户管理',
-      component: () => import('@/pages/admin/UserMangerPage.vue')
+      component: () => import('@/pages/admin/UserMangerPage.vue'),
+    },
+    {
+      path: '/admin/pictureManager',
+      name: '图片管理',
+      component: () => import('../pages/admin/PictureMangerPage.vue'),
+    },
+    {
+      path: '/add_picture',
+      name: '创建图片',
+      component: () => import('@/pages/AddPicturePage.vue'),
+    },
+    {
+      path: '/picture/:id',
+      name: '图片详情',
+      component: () => import('@/pages/PictureDetailPage.vue'),
+      props: true
     },
     {
       path: '/about',
