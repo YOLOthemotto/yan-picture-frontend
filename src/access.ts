@@ -1,4 +1,5 @@
 import router from '@/router'
+import { canAccessRoute } from '@/router/permissions'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { message } from 'ant-design-vue'
 
@@ -13,13 +14,20 @@ router.beforeEach(async (to, from, next) => {
     fistFetchLoginUser = false
   }
 
-  const toUrl = to.path
+  if (!canAccessRoute(to.meta, loginUser)) {
+    if (to.meta.requiresAuth && !loginUser?.id) {
+      await message.error('请先登录')
+      next({
+        path: '/user/login',
+        query: { redirect: to.fullPath },
+      })
+      return
+    }
 
-  // 管理员才能访问 /admin 开头的页面
-  if (toUrl.startsWith('/admin') && (!loginUser || loginUser?.userRole !== 'admin')) {
     await message.error('暂无权限访问')
-    next(`/user/login?redirect=${to.fullPath}`)
+    next('/')
     return
   }
+
   next()
 })

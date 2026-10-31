@@ -44,61 +44,52 @@
 </template>
 <script lang="ts" setup>
 import { computed, h, ref } from 'vue'
-import { HomeOutlined, LogoutOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined } from '@ant-design/icons-vue'
 import { type MenuProps, message } from 'ant-design-vue'
-import { useRouter } from 'vue-router'
+import { type RouteMeta, type RouteRecordRaw, useRouter } from 'vue-router'
+import { canAccessRoute } from '@/router/permissions'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
-import { loginUsingPost, logoutUsingPost } from '@/api/userController.ts'
+import { logoutUsingPost } from '@/api/userController.ts'
 
-// 原始菜单项
-const originItems = [
-  {
-    key: '/',
-    icon: () => h(HomeOutlined),
-    label: '主页',
-    title: '主页',
-  },
-  {
-    key: '/add_picture',
-    label: '创建图片',
-    title: '创建图片',
-  },
-  {
-    key: '/admin/userManager',
-    label: '用户管理',
-    title: '用户管理',
-  },
-  {
-    key: '/admin/pictureManager',
-    label: '图片管理',
-    title: '图片管理',
-  },
-  {
-    key: '/other',
-    label: h('a', { href: 'https://www.baidu.com', target: '_blank' }, '其他'),
-    title: '其他',
-  },
-]
-
-// 根据权限过滤菜单项
-const filterMenus = (menus = [] as MenuProps['items']) => {
-  return menus?.filter((menu) => {
-    if (menu?.key?.startsWith('/admin')) {
-      const loginUser = loginUserStore.loginUser
-      if (!loginUser || loginUser.userRole !== 'admin') {
-        return false
-      }
-    }
-    return true
-  })
+type MenuRoute = RouteRecordRaw & {
+  meta: RouteMeta & { showInMenu: true; menuTitle: string }
 }
 
-// 展示在菜单的路由数组
-const items = computed(() => {
-  return filterMenus(originItems)
-})
+const isMenuRoute = (route: RouteRecordRaw): route is MenuRoute =>
+  Boolean(route.meta?.showInMenu && route.meta.menuTitle)
 
 const router = useRouter() // 获取路由实例
+const loginUserStore = useLoginUserStore()
+
+const items = computed<MenuProps['items']>(() => {
+  const routeItems = router.options.routes
+    .filter(isMenuRoute)
+    .filter((route) => canAccessRoute(route.meta, loginUserStore.loginUser))
+    .sort((left, right) => (left.meta.menuOrder ?? 0) - (right.meta.menuOrder ?? 0))
+    .map((route) => {
+      const icon = route.meta.menuIcon
+
+      return {
+        key: route.path,
+        label: route.meta.menuTitle,
+        title: route.meta.menuTitle,
+        ...(icon ? { icon: () => h(icon) } : {}),
+      }
+    })
+
+  return [
+    ...routeItems,
+    {
+      key: 'external:other',
+      label: h(
+        'a',
+        { href: 'https://www.baidu.com', target: '_blank', rel: 'noopener noreferrer' },
+        '其他',
+      ),
+      title: '其他',
+    },
+  ]
+})
 
 // 当前选中的菜单项
 const current = ref<string[]>([])
@@ -108,12 +99,12 @@ router.afterEach((to) => {
 
 // 路由跳转事件
 const handleMenuClick = ({ key }: { key: string }) => {
+  if (typeof key !== 'string' || key.startsWith('external:')) {
+    return
+  }
+
   router.push({ path: key })
 }
-
-// 检查用户登录状态
-const loginUserStore = useLoginUserStore()
-console.log('拿到的图片' + loginUserStore.loginUser.userAvatar)
 
 const doLogout = async () => {
   const res = await logoutUsingPost()

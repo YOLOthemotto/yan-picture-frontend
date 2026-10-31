@@ -1,14 +1,35 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomePage from '@/pages/HomePage.vue'
+import { HomeOutlined } from '@ant-design/icons-vue'
+// import HomePage from '@/pages/HomePage.vue'
+import HomeWaterfallPage from '@/pages/HomeWaterfallPage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
+import '@/router/permissions'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // 原首页路由（保留）
+    //     {
+    //       path: '/',
+    //       name: 'home',
+    //       component: HomePage,
+    //       meta: {
+    //         showInMenu: true,
+    //         menuTitle: '主页',
+    //         menuOrder: 1,
+    //         menuIcon: HomeOutlined,
+    //       },
+    //     },
     {
       path: '/',
       name: 'home',
-      component: HomePage,
+      component: HomeWaterfallPage,
+      meta: {
+        showInMenu: true,
+        menuTitle: '主页',
+        menuOrder: 1,
+        menuIcon: HomeOutlined,
+      },
     },
     {
       path: '/user/login',
@@ -24,16 +45,36 @@ const router = createRouter({
       path: '/admin/userManager',
       name: '用户管理',
       component: () => import('@/pages/admin/UserMangerPage.vue'),
+      meta: {
+        showInMenu: true,
+        menuTitle: '用户管理',
+        menuOrder: 3,
+        requiresAuth: true,
+        roles: ['admin'],
+      },
     },
     {
       path: '/admin/pictureManager',
       name: '图片管理',
       component: () => import('../pages/admin/PictureMangerPage.vue'),
+      meta: {
+        showInMenu: true,
+        menuTitle: '图片管理',
+        menuOrder: 4,
+        requiresAuth: true,
+        roles: ['admin'],
+      },
     },
     {
       path: '/add_picture',
       name: '创建图片',
       component: () => import('@/pages/AddPicturePage.vue'),
+      meta: {
+        showInMenu: true,
+        menuTitle: '创建图片',
+        menuOrder: 2,
+        requiresAuth: true,
+      },
     },
     {
       path: '/picture/:id',

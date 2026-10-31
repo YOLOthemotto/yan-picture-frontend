@@ -23,6 +23,25 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponsePictureCursorVO_ = {
+    code?: number
+    data?: PictureCursorVO
+    message?: string
+  }
+
+  type PictureCursorVO = {
+    records?: PictureVO[]
+    hasMore?: boolean
+    nextCreateTime?: number
+    nextId?: number
+  }
+
+  type PictureCursorQueryRequest = PictureQueryRequest & {
+    lastCreateTime?: number
+    lastId?: number
+    size?: number
+  }
+
   type BaseResponsePagePictureVO_ = {
     code?: number
     data?: PagePictureVO_
