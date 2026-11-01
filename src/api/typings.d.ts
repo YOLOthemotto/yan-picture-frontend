@@ -23,25 +23,6 @@ declare namespace API {
     message?: string
   }
 
-  type BaseResponsePictureCursorVO_ = {
-    code?: number
-    data?: PictureCursorVO
-    message?: string
-  }
-
-  type PictureCursorVO = {
-    records?: PictureVO[]
-    hasMore?: boolean
-    nextCreateTime?: number
-    nextId?: number
-  }
-
-  type PictureCursorQueryRequest = PictureQueryRequest & {
-    lastCreateTime?: number
-    lastId?: number
-    size?: number
-  }
-
   type BaseResponsePagePictureVO_ = {
     code?: number
     data?: PagePictureVO_
@@ -57,6 +38,12 @@ declare namespace API {
   type BaseResponsePicture_ = {
     code?: number
     data?: Picture
+    message?: string
+  }
+
+  type BaseResponsePictureCursorVO_ = {
+    code?: number
+    data?: PictureCursorVO
     message?: string
   }
 
@@ -179,6 +166,43 @@ declare namespace API {
     userId?: number
   }
 
+  type PictureCursorQueryRequest = {
+    category?: string
+    current?: number
+    endEditTime?: string
+    id?: number
+    introduction?: string
+    lastCreateTime?: number
+    lastId?: number
+    name?: string
+    nullSpaceId?: boolean
+    pageSize?: number
+    picFormat?: string
+    picHeight?: number
+    picScale?: number
+    picSize?: number
+    picWidth?: number
+    reviewMessage?: string
+    reviewStatus?: number
+    reviewTime?: string
+    reviewerId?: number
+    searchText?: string
+    size?: number
+    sortField?: string
+    sortOrder?: string
+    spaceId?: number
+    startEditTime?: string
+    tags?: string[]
+    userId?: number
+  }
+
+  type PictureCursorVO = {
+    hasMore?: boolean
+    nextCreateTime?: number
+    nextId?: number
+    records?: PictureVO[]
+  }
+
   type PictureEditRequest = {
     category?: string
     id?: number
@@ -214,6 +238,12 @@ declare namespace API {
     userId?: number
   }
 
+  type PictureReviewRequest = {
+    id?: number
+    reviewMessage?: string
+    reviewStatus?: number
+  }
+
   type PictureTagCategoryVO = {
     categoryList?: string[]
     tagList?: string[]
@@ -225,6 +255,13 @@ declare namespace API {
     introduction?: string
     name?: string
     tags?: string[]
+  }
+
+  type PictureUploadRequest = {
+    fileUrl?: string
+    id?: number
+    picName?: string
+    spaceId?: number
   }
 
   type PictureVO = {
