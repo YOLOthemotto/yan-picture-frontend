@@ -77,10 +77,21 @@ const router = createRouter({
       },
     },
     {
+      path: '/add_picture/batch',
+      name: '批量创建图片',
+      component: () => import('@/pages/AddPictureBatchPage.vue'),
+      meta: {
+        showInMenu: false,
+        menuTitle: '批量创建图片',
+        menuOrder: 2,
+        requiresAuth: true,
+      },
+    },
+    {
       path: '/picture/:id',
       name: '图片详情',
       component: () => import('@/pages/PictureDetailPage.vue'),
-      props: true
+      props: true,
     },
     {
       path: '/about',
