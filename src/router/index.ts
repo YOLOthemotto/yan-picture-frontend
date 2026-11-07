@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { HomeOutlined } from '@ant-design/icons-vue'
+import { HomeOutlined, PictureOutlined, UserOutlined } from '@ant-design/icons-vue'
 // import HomePage from '@/pages/HomePage.vue'
 import HomeWaterfallPage from '@/pages/HomeWaterfallPage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
@@ -29,6 +29,22 @@ const router = createRouter({
         menuTitle: '主页',
         menuOrder: 1,
         menuIcon: HomeOutlined,
+        showInSider: true,
+        siderTitle: '公共图库',
+        siderOrder: 1,
+        siderIcon: PictureOutlined,
+      },
+    },
+    {
+      path: '/my_space',
+      name: '我的空间',
+      component: () => import('@/pages/MySpacePage.vue'),
+      meta: {
+        showInSider: true,
+        siderTitle: '我的空间',
+        siderOrder: 2,
+        siderIcon: UserOutlined,
+        requiresAuth: true,
       },
     },
     {
@@ -66,12 +82,35 @@ const router = createRouter({
       },
     },
     {
+      path: '/admin/spaceManager',
+      name: '空间管理',
+      component: () => import('../pages/admin/SpaceMangerPage.vue'),
+      meta: {
+        showInMenu: true,
+        menuTitle: '空间管理',
+        menuOrder: 5,
+        requiresAuth: true,
+        roles: ['admin'],
+      },
+    },
+    {
       path: '/add_picture',
       name: '创建图片',
       component: () => import('@/pages/AddPicturePage.vue'),
       meta: {
         showInMenu: true,
         menuTitle: '创建图片',
+        menuOrder: 2,
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/add_space',
+      name: '创建空间',
+      component: () => import('@/pages/AddSpacePage.vue'),
+      meta: {
+        showInMenu: false,
+        menuTitle: '创建空间',
         menuOrder: 2,
         requiresAuth: true,
       },

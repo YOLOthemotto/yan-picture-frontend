@@ -4,9 +4,12 @@
       <a-layout-header class="header">
         <globa-header />
       </a-layout-header>
-      <a-layout-content class="content">
-        <router-view />
-      </a-layout-content>
+      <a-layout>
+        <globa-sider class="sider" />
+        <a-layout-content class="content">
+          <router-view />
+        </a-layout-content>
+      </a-layout>
       <a-layout-footer class="footer">
         <a href="https://www.baidu.com" target="_blank" rel="noopener noreferrer">
           严某的前端学习项目
@@ -18,6 +21,7 @@
 
 <script setup lang="ts">
 import GlobaHeader from '@/components/GlobaHeader.vue'
+import GlobaSider from '@/components/GlobaSider.vue'
 </script>
 
 <style scoped>
@@ -25,11 +29,11 @@ import GlobaHeader from '@/components/GlobaHeader.vue'
   padding-inline: 20px 0;
   background-color: white;
   color: unset;
-  margin-bottom: 16px;
+  margin-bottom: 1px;
 }
 
 #basicLayout .content {
-  padding: 24px;
+  padding: 28px;
   background: #f1f5f9;
   min-height: calc(100vh - 64px - 70px);
   margin-bottom: 28px; /* 留出底部固定 footer 的空间 */
@@ -54,6 +58,18 @@ import GlobaHeader from '@/components/GlobaHeader.vue'
   letter-spacing: 0.02em;
   text-decoration: none;
   transition: color 0.2s ease;
+}
+
+#basicLayout .sider {
+  background-color: white;
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 4px 0 16px rgba(15, 23, 42, 0.04);
+}
+
+#basicLayout :deep(.ant-menu-root) {
+  border-right: none !important;
+  box-shadow: none !important;
+  border-inline-end: none !important;
 }
 
 #basicLayout .footer a:hover {

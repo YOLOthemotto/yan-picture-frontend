@@ -7,6 +7,11 @@ declare module 'vue-router' {
     menuTitle?: string
     menuOrder?: number
     menuIcon?: Component
+    showInSider?: boolean
+    siderTitle?: string
+    siderOrder?: number
+    siderIcon?: Component
+    siderDisabled?: boolean
     requiresAuth?: boolean
     roles?: string[]
   }
