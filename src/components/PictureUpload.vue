@@ -5,6 +5,7 @@
       :show-upload-list="false"
       :custom-request="handleUpload"
       :before-upload="beforeUpload"
+      :disabled="loading || disabled"
     >
       <img v-if="picture?.url" :src="picture?.url" alt="avatar" />
       <div v-else>
@@ -24,32 +25,46 @@ import { uploadPictureUsingPost } from '@/api/pictureController.ts'
 
 interface Props {
   picture?: API.PictureVO
+  spaceId?: number | string
+  disabled?: boolean
   onSuccess?: (newPicture: API.PictureVO) => void
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{ busy: [value: boolean] }>()
 
 /**
  * 上传图片
  * @param file
  */
-const handleUpload = async ({ file }: any) => {
+const handleUpload: NonNullable<UploadProps['customRequest']> = async ({ file }) => {
+  if (loading.value || props.disabled) return
+  if (!(file instanceof File)) {
+    message.error('图片上传失败，请选择本地文件')
+    return
+  }
   loading.value = true
+  emit('busy', true)
   try {
-    const params = props.picture ? { id: props.picture.id } : {}
+    const params: API.uploadPictureUsingPOSTParams = {
+      id: props.picture?.id,
+      spaceId: props.picture?.spaceId ?? props.spaceId,
+    }
     const res = await uploadPictureUsingPost(params, {}, file)
     if (res.data.code === 0 && res.data.data) {
-      await message.success('图片上传成功!')
       // 将上传成功的图片传递给父组件
       props.onSuccess?.(res.data.data)
+      message.success('图片上传成功!')
     } else {
       await message.error('图片上传失败,' + res.data.message)
     }
   } catch (error) {
     console.error('图片上传失败', error)
     await message.error('图片上传失败,' + error)
+  } finally {
+    loading.value = false
+    emit('busy', false)
   }
-  loading.value = false
 }
 
 const loading = ref<boolean>(false)
@@ -58,7 +73,7 @@ const loading = ref<boolean>(false)
  * 上传前的校验
  * @param file
  */
-const beforeUpload = (file: UploadProps['fileList'][number]) => {
+const beforeUpload: NonNullable<UploadProps['beforeUpload']> = (file) => {
   // 校验图片格式
   const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png'
   if (!isJpgOrPng) {

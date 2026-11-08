@@ -6,7 +6,7 @@
         style="width: calc(100% - 120px)"
         placeholder="请填入图片 URL"
       />
-      <a-button type="primary" style="width: 120px" :loading="loading" @click="handleUpload"
+      <a-button type="primary" style="width: 120px" :loading="loading" :disabled="disabled" @click="handleUpload"
         >点击获取</a-button
       >
     </a-input-group>
@@ -18,15 +18,17 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { message } from 'ant-design-vue'
-import type { UploadProps } from 'ant-design-vue'
-import { uploadPictureByUrlUsingPost, uploadPictureUsingPost } from '@/api/pictureController.ts'
+import { uploadPictureByUrlUsingPost } from '@/api/pictureController.ts'
 
 interface Props {
   picture?: API.PictureVO
+  spaceId?: number | string
+  disabled?: boolean
   onSuccess?: (newPicture: API.PictureVO) => void
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{ busy: [value: boolean] }>()
 const fileUrl = ref<string>()
 const loading = ref<boolean>(false)
 
@@ -35,25 +37,32 @@ const loading = ref<boolean>(false)
  * @param file
  */
 const handleUpload = async () => {
+  if (loading.value || props.disabled) return
   loading.value = true
+  emit('busy', true)
   try {
-    const params: API.PictureUpdateRequest = { fileUrl: fileUrl.value }
+    const params: API.PictureUploadRequest = {
+      fileUrl: fileUrl.value,
+      spaceId: props.picture?.spaceId ?? props.spaceId,
+    }
     if (props.picture) {
       params.id = props.picture.id
     }
     const res = await uploadPictureByUrlUsingPost(params)
     if (res.data.code === 0 && res.data.data) {
-      await message.success('图片上传成功!')
       // 将上传成功的图片传递给父组件
       props.onSuccess?.(res.data.data)
+      message.success('图片上传成功!')
     } else {
       await message.error('图片上传失败,' + res.data.message)
     }
   } catch (error) {
     console.error('图片上传失败', error)
     await message.error('图片上传失败,' + error)
+  } finally {
+    loading.value = false
+    emit('busy', false)
   }
-  loading.value = false
 }
 </script>
 <style scoped>

@@ -124,7 +124,7 @@ declare namespace API {
 
   type getPictureVOByIdUsingGETParams = {
     /** id */
-    id?: number
+    id?: number | string
   }
 
   type getSpaceByIdUsingGETParams = {
@@ -134,7 +134,7 @@ declare namespace API {
 
   type getSpaceVOByIdUsingGETParams = {
     /** id */
-    id?: number
+    id?: number | string
   }
 
   type getUserByIdUsingGETParams = {
@@ -294,7 +294,7 @@ declare namespace API {
     searchText?: string
     sortField?: string
     sortOrder?: string
-    spaceId?: number
+    spaceId?: number | string
     startEditTime?: string
     tags?: string[]
     userId?: number
@@ -329,7 +329,7 @@ declare namespace API {
     fileUrl?: string
     id?: number
     picName?: string
-    spaceId?: number
+    spaceId?: number | string
   }
 
   type PictureVO = {
@@ -435,7 +435,7 @@ declare namespace API {
     fileUrl?: string
     id?: number
     picName?: string
-    spaceId?: number
+    spaceId?: number | string
   }
 
   type User = {

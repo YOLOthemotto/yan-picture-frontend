@@ -133,6 +133,15 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/space/:id',
+      name: '空间详情',
+      component: () => import('@/pages/SpaceDetailPage.vue'),
+      props: true,
+      meta: {
+        activeSiderPath: '/my_space',
+      },
+    },
+    {
       path: '/about',
       name: 'about',
       // route level code-splitting

@@ -3,7 +3,7 @@
     <a-flex justify="space-between" align="middle">
       <h2>空间管理</h2>
       <a-space>
-        <a-button type="primary" href="/add_picture" target="_blank">+ 创建空间</a-button>
+        <a-button type="primary" href="/add_space" target="_blank">+ 创建空间</a-button>
       </a-space>
     </a-flex>
     <!-- 搜索框 -->
@@ -37,7 +37,7 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'spaceLevel'">
-          <div>{{ SPACE_LEVEL_MAP[record.spaceLevel] }}</div>
+          <SpaceLevelBadge :level="record.spaceLevel" />
         </template>
         <template v-if="column.dataIndex === 'spaceUseInfo'">
           <div>大小：{{ formatSize(record.totalSize) }} / {{ formatSize(record.maxSize) }}</div>
@@ -66,7 +66,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { deleteSpaceUsingPost, listSpaceByPageUsingPost } from '@/api/spaceController.ts'
 import dayjs from 'dayjs'
-import { SPACE_LEVEL_MAP, SPACE_LEVEL_OPTIONS } from '@/constants/space.ts'
+import { SPACE_LEVEL_OPTIONS } from '@/constants/space.ts'
+import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
 import { formatSize } from '@/utils'
 
 const columns = [

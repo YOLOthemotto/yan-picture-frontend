@@ -1,5 +1,5 @@
 <template>
-  <div id="globalSider">
+  <div id="globalSider" v-if="loginUserStore.loginUser.id">
     <a-layout-sider width="200" breakpoint="lg" collapsed-width="0">
       <a-menu
         :selectedKeys="current"
@@ -49,9 +49,10 @@ const items = computed<MenuProps['items']>(() =>
   }),
 )
 
-const current = computed(() =>
-  siderRoutes.value.some((item) => item.path === route.path) ? [route.path] : [],
-)
+const current = computed(() => {
+  const activePath = route.meta.activeSiderPath ?? route.path
+  return siderRoutes.value.some((item) => item.path === activePath) ? [activePath] : []
+})
 
 const handleMenuClick = ({ key }: { key: string }) => {
   const target = siderRoutes.value.find((item) => item.path === key && !item.meta.siderDisabled)

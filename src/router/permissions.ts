@@ -12,6 +12,7 @@ declare module 'vue-router' {
     siderOrder?: number
     siderIcon?: Component
     siderDisabled?: boolean
+    activeSiderPath?: string
     requiresAuth?: boolean
     roles?: string[]
   }
