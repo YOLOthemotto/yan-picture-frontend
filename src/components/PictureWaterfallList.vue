@@ -51,7 +51,7 @@
       </div>
     </div>
 
-    <a-empty v-if="!loading && dataList.length === 0" description="暂无图片" />
+    <a-empty v-if="!loading && dataList.length === 0" :description="emptyDescription ?? '暂无图片'" />
     <div class="load-more">
       <a-spin v-if="loading" />
       <a-button v-else-if="hasMore" @click="loadMore">加载更多</a-button>
@@ -68,6 +68,7 @@ const props = defineProps<{
   dataList: API.PictureVO[]
   loading: boolean
   hasMore: boolean
+  emptyDescription?: string
 }>()
 const emit = defineEmits<{
   loadMore: []
