@@ -133,6 +133,16 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/picture/:id/search',
+      name: '以图搜图',
+      component: () => import('@/pages/SearchPicturePage.vue'),
+      props: true,
+      meta: {
+        requiresAuth: true,
+        activeSiderPath: '/my_space',
+      },
+    },
+    {
       path: '/space/:id',
       name: '空间详情',
       component: () => import('@/pages/SpaceDetailPage.vue'),

@@ -21,7 +21,11 @@
             <strong v-if="remainingSize !== undefined">剩余 {{ formatSize(remainingSize) }}</strong>
             <strong v-else>容量信息暂不可用</strong>
           </div>
-          <a-progress v-if="usagePercent !== undefined" :percent="usagePercent" :show-info="false" />
+          <a-progress
+            v-if="usagePercent !== undefined"
+            :percent="usagePercent"
+            :show-info="false"
+          />
           <p v-if="space.totalSize != null && space.maxSize != null">
             已用 {{ formatSize(space.totalSize) }} / {{ formatSize(space.maxSize) }}
           </p>
@@ -57,9 +61,19 @@
             :empty-description="hasFilters ? '没有符合条件的图片' : '暂无图片'"
             @load-more="loadMore"
           >
-            <template v-if="canManagePictures" #actions="{ picture }">
+            <template #actions="{ picture }">
               <a-space>
                 <a-button
+                  type="link"
+                  size="small"
+                  :disabled="!picture.id || deleting"
+                  :aria-label="`以图搜图 ${picture.name || '未命名'}`"
+                  @click="searchByPicture(picture)"
+                >
+                  以图搜图
+                </a-button>
+                <a-button
+                  v-if="canManagePictures"
                   type="link"
                   size="small"
                   :disabled="!picture.id || deleting"
@@ -69,6 +83,7 @@
                   编辑
                 </a-button>
                 <a-popconfirm
+                  v-if="canManagePictures"
                   title="确定删除这张图片吗？"
                   ok-text="删除"
                   cancel-text="取消"
@@ -117,6 +132,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
@@ -129,6 +145,7 @@ import { formatSize } from '@/utils'
 import PictureSerachForm from '@/components/PictureSerachForm.vue'
 
 const props = defineProps<{ id: number | string }>()
+const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const space = ref<API.SpaceVO>()
 const spaceLoading = ref(false)
@@ -249,6 +266,11 @@ const searchPictures = (filters: API.PictureQueryRequest) => {
   currentPage.value = 1
   hasMore.value = true
   void loadMore()
+}
+
+const searchByPicture = (picture: API.PictureVO) => {
+  if (!picture.id || deleting.value) return
+  void router.push({ name: '以图搜图', params: { id: String(picture.id) } })
 }
 
 const createPicture = () => {
