@@ -40,25 +40,84 @@
         <h2>空间图片</h2>
         <span v-if="space.totalCount != null">{{ space.totalCount }} 张</span>
       </div>
+      <div class="search-modes" role="group" aria-label="搜索方式">
+        <a-button
+          :type="searchMode === 'filters' ? 'primary' : 'default'"
+          :disabled="deleting"
+          :aria-pressed="searchMode === 'filters'"
+          @click="setSearchMode('filters')"
+          >条件搜索</a-button
+        >
+        <a-button
+          :type="searchMode === 'color' ? 'primary' : 'default'"
+          :disabled="deleting"
+          :aria-pressed="searchMode === 'color'"
+          @click="setSearchMode('color')"
+          >颜色搜索</a-button
+        >
+      </div>
       <PictureSerachForm
+        v-if="searchMode === 'filters'"
         :initial-values="searchFilters"
         :disabled="deleting"
         @search="searchPictures"
       />
+      <form v-else class="color-search" @submit.prevent="submitColorSearch">
+        <div class="color-controls">
+          <span>选择颜色</span>
+          <a-popover v-model:open="colorPickerOpen" trigger="click" placement="bottomLeft">
+            <template #content>
+              <Sketch
+                :model-value="selectedColor"
+                :preset-colors="presetColors"
+                disable-alpha
+                @update:model-value="updateSelectedColor"
+              />
+            </template>
+            <a-button
+              :disabled="deleting"
+              :aria-label="`选择颜色，当前 ${selectedColor.toUpperCase()}`"
+              :aria-expanded="colorPickerOpen"
+            >
+              <span class="color-swatch" :style="{ backgroundColor: selectedColor }"></span>
+              {{ selectedColor.toUpperCase() }}
+            </a-button>
+          </a-popover>
+          <a-button type="primary" html-type="submit" :disabled="deleting">搜索颜色</a-button>
+        </div>
+        <p>颜色搜索与条件搜索相互独立，不会组合筛选。</p>
+        <p v-if="appliedColor" class="applied-color">
+          当前结果颜色：<span
+            class="color-swatch"
+            :style="{ backgroundColor: appliedColor }"
+          ></span>
+          {{ appliedColor.toUpperCase() }}
+        </p>
+      </form>
       <div class="picture-results" :aria-busy="pictureLoading">
         <a-alert v-if="pictureError" type="error" show-icon class="picture-error">
           <template #message>{{ pictureError }}</template>
           <template #action>
-            <a-button size="small" @click="loadMore">重试</a-button>
+            <a-button size="small" @click="retryPictures">重试</a-button>
           </template>
         </a-alert>
         <a-spin :spinning="pictureLoading && currentPage === 1" tip="正在搜索图片">
+          <a-empty
+            v-if="searchMode === 'color' && !appliedColor && !pictureLoading"
+            description="请选择颜色并点击搜索"
+          />
           <PictureWaterfallList
-            v-if="!pictureError || currentPage > 1"
+            v-else-if="!pictureError || (searchMode === 'filters' && currentPage > 1)"
             :data-list="dataList"
             :loading="pictureLoading"
             :has-more="hasMore && !pictureError"
-            :empty-description="hasFilters ? '没有符合条件的图片' : '暂无图片'"
+            :empty-description="
+              searchMode === 'color'
+                ? '没有找到相近颜色的图片'
+                : hasFilters
+                  ? '没有符合条件的图片'
+                  : '暂无图片'
+            "
             @load-more="loadMore"
           >
             <template #actions="{ picture }">
@@ -135,8 +194,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import { Sketch } from '@ckpack/vue-color'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
-import { deletePictureUsingPost, listPictureVoByPageUsingPost } from '@/api/pictureController.ts'
+import {
+  deletePictureUsingPost,
+  listPictureVoByPageUsingPost,
+  searchPictureByColorUsingPost,
+} from '@/api/pictureController.ts'
 import PictureWaterfallList from '@/components/PictureWaterfallList.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
@@ -152,6 +216,27 @@ const spaceLoading = ref(false)
 const spaceError = ref('')
 const dataList = ref<API.PictureVO[]>([])
 const searchFilters = ref<API.PictureQueryRequest>({})
+const searchMode = ref<'filters' | 'color'>('filters')
+const selectedColor = ref('#1677ff')
+const appliedColor = ref('')
+const colorPickerOpen = ref(false)
+const presetColors = [
+  '#D0021B',
+  '#F5A623',
+  '#F8E71C',
+  '#8B572A',
+  '#7ED321',
+  '#417505',
+  '#BD10E0',
+  '#9013FE',
+  '#4A90E2',
+  '#50E3C2',
+  '#B8E986',
+  '#000000',
+  '#4A4A4A',
+  '#9B9B9B',
+  '#FFFFFF',
+]
 const hasFilters = computed(() =>
   Object.values(searchFilters.value).some((value) => value != null && value !== ''),
 )
@@ -209,8 +294,12 @@ const loadSpace = async () => {
       return
     }
     space.value = res.data.data
-    hasMore.value = true
-    await loadMore()
+    if (searchMode.value === 'color') {
+      if (appliedColor.value) await loadColorPictures()
+    } else {
+      hasMore.value = true
+      await loadMore()
+    }
   } catch (error) {
     if (requestGeneration === generation) {
       console.error('获取空间详情失败:', error)
@@ -222,7 +311,8 @@ const loadSpace = async () => {
 }
 
 const loadMore = async () => {
-  if (pictureLoading.value || deleting.value || !hasMore.value) return
+  if (searchMode.value !== 'filters' || pictureLoading.value || deleting.value || !hasMore.value)
+    return
   const requestGeneration = generation
   const requestPictureGeneration = pictureGeneration
   const page = currentPage.value
@@ -258,12 +348,77 @@ const loadMore = async () => {
   }
 }
 
-const searchPictures = (filters: API.PictureQueryRequest) => {
-  searchFilters.value = filters
+const loadColorPictures = async () => {
+  if (searchMode.value !== 'color' || !appliedColor.value || pictureLoading.value || deleting.value)
+    return
+  const requestGeneration = generation
+  const requestPictureGeneration = pictureGeneration
+  pictureLoading.value = true
+  pictureError.value = ''
+  try {
+    const res = await searchPictureByColorUsingPost({
+      spaceId: String(props.id),
+      picColor: appliedColor.value,
+    })
+    if (requestGeneration !== generation || requestPictureGeneration !== pictureGeneration) return
+    if (res.data.code !== 0 || !Array.isArray(res.data.data)) {
+      pictureError.value = '颜色搜索失败：' + (res.data.message || '请稍后重试')
+      return
+    }
+    dataList.value = res.data.data
+  } catch (error) {
+    if (requestGeneration === generation && requestPictureGeneration === pictureGeneration) {
+      console.error('颜色搜索失败:', error)
+      pictureError.value = '颜色搜索失败，请检查网络后重试'
+    }
+  } finally {
+    if (requestGeneration === generation && requestPictureGeneration === pictureGeneration)
+      pictureLoading.value = false
+  }
+}
+
+const resetPictureResults = () => {
   pictureGeneration++
+  dataList.value = []
   pictureError.value = ''
   pictureLoading.value = false
   currentPage.value = 1
+  hasMore.value = false
+}
+
+const setSearchMode = (mode: 'filters' | 'color') => {
+  if (mode === searchMode.value || deleting.value) return
+  colorPickerOpen.value = false
+  searchMode.value = mode
+  resetPictureResults()
+  if (mode === 'filters') {
+    hasMore.value = true
+    void loadMore()
+  } else if (appliedColor.value) {
+    void loadColorPictures()
+  }
+}
+
+const updateSelectedColor = ({ hex }: { hex: string }) => {
+  selectedColor.value = hex
+}
+
+const submitColorSearch = () => {
+  if (deleting.value) return
+  colorPickerOpen.value = false
+  appliedColor.value = selectedColor.value
+  resetPictureResults()
+  void loadColorPictures()
+}
+
+const retryPictures = () => {
+  if (searchMode.value === 'color') void loadColorPictures()
+  else void loadMore()
+}
+
+const searchPictures = (filters: API.PictureQueryRequest) => {
+  searchFilters.value = filters
+  resetPictureResults()
   hasMore.value = true
   void loadMore()
 }
@@ -333,6 +488,10 @@ watch(
   () => props.id,
   () => {
     searchFilters.value = {}
+    searchMode.value = 'filters'
+    selectedColor.value = '#1677ff'
+    appliedColor.value = ''
+    colorPickerOpen.value = false
     pictureModalOpen.value = false
     pictureModalBusy.value = false
     pictureModalChanged.value = false
@@ -418,6 +577,53 @@ onBeforeUnmount(() => {
 
 .pictures-heading span {
   color: #595959;
+}
+
+.search-modes,
+.color-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-modes {
+  margin-bottom: 12px;
+}
+
+.color-search {
+  margin-bottom: 24px;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.color-controls > span {
+  margin-right: 4px;
+  font-weight: 500;
+}
+
+.color-controls button .color-swatch {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.color-search p {
+  margin: 10px 0 0;
+  color: #595959;
+}
+
+.applied-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
 }
 
 .picture-error {

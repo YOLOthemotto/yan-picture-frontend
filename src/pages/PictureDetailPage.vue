@@ -37,6 +37,12 @@
             <a-descriptions-item label="格式">
               {{ picture.picFormat ?? '-' }}
             </a-descriptions-item>
+            <a-descriptions-item v-if="pictureColor" label="主色调">
+              <span class="picture-color">
+                <span class="color-swatch" :style="{ backgroundColor: pictureColor }"></span>
+                {{ pictureColor }}
+              </span>
+            </a-descriptions-item>
             <a-descriptions-item label="宽度">
               {{ picture.picWidth ?? '-' }}
             </a-descriptions-item>
@@ -93,6 +99,8 @@ interface Props {
 const props = defineProps<Props>()
 const picture = ref<API.PictureVO>({})
 const loginUserStore = useLoginUserStore()
+
+const pictureColor = computed(() => picture.value.picColor?.trim().replace(/^0x/i, '#'))
 
 const canEdit = computed(() => {
   // 编辑逻辑
@@ -219,5 +227,18 @@ onMounted(() => {
   justify-content: center;
   width: 100%;
   margin-top: 16px;
+}
+
+.picture-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
 }
 </style>
