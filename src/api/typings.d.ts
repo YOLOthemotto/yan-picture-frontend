@@ -282,6 +282,14 @@ declare namespace API {
     records?: PictureVO[]
   }
 
+  type PictureEditByBatchRequest = {
+    category?: string
+    nameRule?: string
+    pictureIdList?: number[]
+    spaceId?: number | string
+    tags?: string[]
+  }
+
   type PictureEditRequest = {
     category?: string
     id?: number
@@ -374,7 +382,7 @@ declare namespace API {
 
   type SearchPictureByColorRequest = {
     picColor?: string
-    spaceId?: number | string
+    spaceId?: number
   }
 
   type SearchPictureByPictureRequest = {

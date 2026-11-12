@@ -94,6 +94,27 @@
           {{ appliedColor.toUpperCase() }}
         </p>
       </form>
+      <div v-if="canManagePictures" class="batch-toolbar">
+        <a-button
+          type="primary"
+          ghost
+          :disabled="pictureLoading || deleting || !dataList.length"
+          @click="openBatchEdit"
+        >
+          批量编辑
+        </a-button>
+        <span v-if="selectedPictureIds.length">已勾选 {{ selectedPictureIds.length }} 张</span>
+        <span v-else>
+          {{
+            searchMode === 'filters'
+              ? '未勾选时默认编辑最近加载的一页'
+              : '未勾选时默认编辑当前颜色搜索结果'
+          }}
+        </span>
+        <a-button v-if="selectedPictureIds.length" type="link" @click="selectedPictureIds = []">
+          清空勾选
+        </a-button>
+      </div>
       <div class="picture-results" :aria-busy="pictureLoading">
         <a-alert v-if="pictureError" type="error" show-icon class="picture-error">
           <template #message>{{ pictureError }}</template>
@@ -120,6 +141,19 @@
             "
             @load-more="loadMore"
           >
+            <template v-if="canManagePictures" #cover-action="{ picture }">
+              <a-checkbox
+                class="picture-selection"
+                :class="{
+                  'picture-selection--checked':
+                    picture.id != null && selectedPictureIds.includes(picture.id),
+                }"
+                :checked="picture.id != null && selectedPictureIds.includes(picture.id)"
+                :disabled="picture.id == null || deleting"
+                :aria-label="`勾选图片 ${picture.name || '未命名'}`"
+                @change="togglePictureSelection(picture.id)"
+              />
+            </template>
             <template #actions="{ picture }">
               <div class="picture-action-grid">
                 <a-button
@@ -198,6 +232,15 @@
         @saved="pictureSaved"
       />
     </a-modal>
+    <BatchEditPictureModal
+      :key="String(props.id)"
+      :open="batchModalOpen"
+      :space-id="String(props.id)"
+      :pictures="batchPictures"
+      :scope-description="batchScopeDescription"
+      @close="batchModalOpen = false"
+      @saved="batchSaved"
+    />
     <ShareModal v-model:open="shareModalOpen" :url="sharePictureUrl" />
   </div>
 </template>
@@ -227,6 +270,7 @@ import { useLoginUserStore } from '@/stores/useLoginUserStore'
 import { formatSize } from '@/utils'
 import PictureSerachForm from '@/components/PictureSerachForm.vue'
 import ShareModal from '@/components/ShareModal.vue'
+import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
 import '@/assets/picture-actions.css'
 
 const props = defineProps<{ id: number | string }>()
@@ -236,6 +280,11 @@ const space = ref<API.SpaceVO>()
 const spaceLoading = ref(false)
 const spaceError = ref('')
 const dataList = ref<API.PictureVO[]>([])
+const currentPagePictures = ref<API.PictureVO[]>([])
+const selectedPictureIds = ref<number[]>([])
+const batchModalOpen = ref(false)
+const batchPictures = ref<API.PictureVO[]>([])
+const batchScopeDescription = ref('')
 const searchFilters = ref<API.PictureQueryRequest>({})
 const searchMode = ref<'filters' | 'color'>('filters')
 const selectedColor = ref('#1677ff')
@@ -299,6 +348,8 @@ const loadSpace = async () => {
   space.value = undefined
   spaceError.value = ''
   dataList.value = []
+  currentPagePictures.value = []
+  selectedPictureIds.value = []
   pictureError.value = ''
   pictureLoading.value = false
   currentPage.value = 1
@@ -356,6 +407,7 @@ const loadMore = async () => {
     const result = res.data.data
     const records = result.records ?? []
     dataList.value = page === 1 ? records : [...dataList.value, ...records]
+    currentPagePictures.value = records
     hasMore.value =
       records.length > 0 &&
       (result.total != null ? dataList.value.length < result.total : records.length === pageSize)
@@ -389,6 +441,7 @@ const loadColorPictures = async () => {
       return
     }
     dataList.value = res.data.data
+    currentPagePictures.value = res.data.data
   } catch (error) {
     if (requestGeneration === generation && requestPictureGeneration === pictureGeneration) {
       console.error('颜色搜索失败:', error)
@@ -403,6 +456,8 @@ const loadColorPictures = async () => {
 const resetPictureResults = () => {
   pictureGeneration++
   dataList.value = []
+  currentPagePictures.value = []
+  selectedPictureIds.value = []
   pictureError.value = ''
   pictureLoading.value = false
   currentPage.value = 1
@@ -444,6 +499,41 @@ const searchPictures = (filters: API.PictureQueryRequest) => {
   resetPictureResults()
   hasMore.value = true
   void loadMore()
+}
+
+const togglePictureSelection = (id?: number) => {
+  if (id == null) return
+  selectedPictureIds.value = selectedPictureIds.value.includes(id)
+    ? selectedPictureIds.value.filter((selectedId) => selectedId !== id)
+    : [...selectedPictureIds.value, id]
+}
+
+const openBatchEdit = () => {
+  if (!canManagePictures.value || pictureLoading.value || deleting.value) return
+  const hasSelection = selectedPictureIds.value.length > 0
+  batchPictures.value = (
+    hasSelection
+      ? dataList.value.filter(
+          (picture) => picture.id != null && selectedPictureIds.value.includes(picture.id),
+        )
+      : currentPagePictures.value
+  ).filter((picture) => picture.id != null)
+  if (!batchPictures.value.length) {
+    message.warning('没有可编辑的图片')
+    return
+  }
+  batchScopeDescription.value = hasSelection
+    ? '当前范围为已勾选的图片'
+    : searchMode.value === 'filters'
+      ? '当前范围为最近加载的一页图片'
+      : '当前范围为颜色搜索结果'
+  batchModalOpen.value = true
+}
+
+const batchSaved = () => {
+  batchModalOpen.value = false
+  selectedPictureIds.value = []
+  void loadSpace()
 }
 
 const searchByPicture = (picture: API.PictureVO) => {
@@ -524,6 +614,8 @@ watch(
     pictureModalOpen.value = false
     pictureModalBusy.value = false
     pictureModalChanged.value = false
+    batchModalOpen.value = false
+    batchPictures.value = []
     shareModalOpen.value = false
     sharePictureUrl.value = ''
     void loadSpace()
@@ -659,6 +751,51 @@ onBeforeUnmount(() => {
 
 .picture-error {
   margin-bottom: 16px;
+}
+
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: #595959;
+}
+
+.picture-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border-radius: 8px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.picture-selection :deep(.ant-checkbox:not(.ant-checkbox-disabled) .ant-checkbox-inner) {
+  border-color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.picture-selection :deep(.ant-checkbox-checked:not(.ant-checkbox-disabled) .ant-checkbox-inner) {
+  border-color: #1677ff;
+  background: rgba(22, 119, 255, 0.85);
+}
+
+.picture-selection--checked,
+.picture-results :deep(.waterfall-item:hover) .picture-selection,
+.picture-results :deep(.waterfall-item:focus-within) .picture-selection {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .picture-selection {
+    opacity: 1;
+  }
 }
 
 .picture-action-grid {

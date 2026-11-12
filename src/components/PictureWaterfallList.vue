@@ -22,9 +22,16 @@
                 {{ picture.introduction }}
               </div>
             </div>
-            <span v-if="picture.picFormat" class="format-badge">
+            <span
+              v-if="picture.picFormat"
+              class="format-badge"
+              :class="{ 'format-badge--left': $slots['cover-action'] }"
+            >
               {{ picture.picFormat.toUpperCase() }}
             </span>
+            <div v-if="$slots['cover-action']" class="cover-action" @click.stop>
+              <slot name="cover-action" :picture="picture" />
+            </div>
           </div>
           <div class="info">
             <div class="title">{{ picture.name }}</div>
@@ -51,7 +58,10 @@
       </div>
     </div>
 
-    <a-empty v-if="!loading && dataList.length === 0" :description="emptyDescription ?? '暂无图片'" />
+    <a-empty
+      v-if="!loading && dataList.length === 0"
+      :description="emptyDescription ?? '暂无图片'"
+    />
     <div class="load-more">
       <a-spin v-if="loading" />
       <a-button v-else-if="hasMore" @click="loadMore">加载更多</a-button>
@@ -207,6 +217,17 @@ onBeforeUnmount(() => {
   color: #fff;
   background: rgba(0, 0, 0, 0.45);
   border-radius: 4px;
+}
+
+.format-badge--left {
+  right: auto;
+  left: 8px;
+}
+
+.cover-action {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 
 .info {
