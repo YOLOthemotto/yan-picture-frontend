@@ -1,0 +1,26 @@
+.picture-action--share.ant-btn:not(:disabled) {
+  color: #0958d9;
+}
+
+.picture-action--share.ant-btn:not(:disabled):hover {
+  color: #0958d9;
+  background: #e6f4ff;
+}
+
+.picture-action--search.ant-btn:not(:disabled) {
+  color: #531dab;
+}
+
+.picture-action--search.ant-btn:not(:disabled):hover {
+  color: #531dab;
+  background: #f9f0ff;
+}
+
+.picture-action--edit.ant-btn:not(:disabled) {
+  color: #006d75;
+}
+
+.picture-action--edit.ant-btn:not(:disabled):hover {
+  color: #006d75;
+  background: #e6fffb;
+}

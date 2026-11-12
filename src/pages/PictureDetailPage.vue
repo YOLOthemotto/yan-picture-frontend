@@ -57,40 +57,53 @@
             </a-descriptions-item>
           </a-descriptions>
           <!-- 图片操作 -->
-          <a-space wrap class="actions">
+          <div class="actions">
             <a-button type="primary" @click="doDownload">
               免费下载
               <template #icon>
                 <DownloadOutlined />
               </template>
             </a-button>
-            <a-button :icon="h(EditOutlined)" type="default" @click="doEdit" :disabled="!canEdit">
+            <a-button
+              type="text"
+              class="picture-action--share"
+              :disabled="!picture.url"
+              @click="shareModalOpen = true"
+            >
+              <template #icon><ShareAltOutlined /></template>
+              分享
+            </a-button>
+            <a-button type="text" class="picture-action--edit" @click="doEdit" :disabled="!canEdit">
+              <template #icon><EditOutlined /></template>
               编辑
             </a-button>
-            <a-button
-              :icon="h(DeleteOutlined)"
-              danger
-              type="default"
-              @click="doDelete"
-              :disabled="!canEdit"
-            >
+            <a-button danger type="text" @click="doDelete" :disabled="!canEdit">
+              <template #icon><DeleteOutlined /></template>
               删除
             </a-button>
-          </a-space>
+          </div>
         </a-card>
       </a-col>
     </a-row>
+    <ShareModal v-model:open="shareModalOpen" :url="picture.url" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { deletePictureUsingPost, getPictureVoByIdUsingGet } from '@/api/pictureController.ts'
 import { message } from 'ant-design-vue'
 import { downloadImage, formatSize } from '@/utils'
-import { EditOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons-vue'
+import {
+  EditOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  ShareAltOutlined,
+} from '@ant-design/icons-vue'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { useRouter } from 'vue-router'
+import ShareModal from '@/components/ShareModal.vue'
+import '@/assets/picture-actions.css'
 
 interface Props {
   id: number | string
@@ -98,6 +111,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const picture = ref<API.PictureVO>({})
+const shareModalOpen = ref(false)
 const loginUserStore = useLoginUserStore()
 
 const pictureColor = computed(() => picture.value.picColor?.trim().replace(/^0x/i, '#'))
@@ -204,7 +218,9 @@ onMounted(() => {
   padding: 16px;
   background: #f5f5f5;
   background-size: 20px 20px;
-  background-position: 0 0, 10px 10px;
+  background-position:
+    0 0,
+    10px 10px;
   border-radius: 8px;
 }
 
@@ -224,8 +240,9 @@ onMounted(() => {
 }
 
 .actions {
-  justify-content: center;
-  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(104px, 40%)), 1fr));
+  gap: 8px;
   margin-top: 16px;
 }
 

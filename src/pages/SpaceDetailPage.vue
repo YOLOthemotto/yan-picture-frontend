@@ -121,24 +121,36 @@
             @load-more="loadMore"
           >
             <template #actions="{ picture }">
-              <a-space>
+              <div class="picture-action-grid">
                 <a-button
-                  type="link"
-                  size="small"
+                  type="text"
+                  class="picture-action--share"
+                  :disabled="!picture.url || deleting"
+                  :aria-label="`分享图片 ${picture.name || '未命名'}`"
+                  @click="sharePicture(picture)"
+                >
+                  <template #icon><ShareAltOutlined /></template>
+                  分享
+                </a-button>
+                <a-button
+                  type="text"
+                  class="picture-action--search"
                   :disabled="!picture.id || deleting"
                   :aria-label="`以图搜图 ${picture.name || '未命名'}`"
                   @click="searchByPicture(picture)"
                 >
+                  <template #icon><SearchOutlined /></template>
                   以图搜图
                 </a-button>
                 <a-button
                   v-if="canManagePictures"
-                  type="link"
-                  size="small"
+                  type="text"
+                  class="picture-action--edit"
                   :disabled="!picture.id || deleting"
                   :aria-label="`编辑图片 ${picture.name || '未命名'}`"
                   @click="editPicture(picture)"
                 >
+                  <template #icon><EditOutlined /></template>
                   编辑
                 </a-button>
                 <a-popconfirm
@@ -150,16 +162,16 @@
                   @confirm="deletePicture(picture)"
                 >
                   <a-button
-                    type="link"
+                    type="text"
                     danger
-                    size="small"
                     :disabled="!picture.id || deleting"
                     :aria-label="`删除图片 ${picture.name || '未命名'}`"
                   >
+                    <template #icon><DeleteOutlined /></template>
                     删除
                   </a-button>
                 </a-popconfirm>
-              </a-space>
+              </div>
             </template>
           </PictureWaterfallList>
         </a-spin>
@@ -186,6 +198,7 @@
         @saved="pictureSaved"
       />
     </a-modal>
+    <ShareModal v-model:open="shareModalOpen" :url="sharePictureUrl" />
   </div>
 </template>
 
@@ -193,7 +206,13 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  ShareAltOutlined,
+} from '@ant-design/icons-vue'
 import { Sketch } from '@ckpack/vue-color'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import {
@@ -207,6 +226,8 @@ import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
 import { useLoginUserStore } from '@/stores/useLoginUserStore'
 import { formatSize } from '@/utils'
 import PictureSerachForm from '@/components/PictureSerachForm.vue'
+import ShareModal from '@/components/ShareModal.vue'
+import '@/assets/picture-actions.css'
 
 const props = defineProps<{ id: number | string }>()
 const router = useRouter()
@@ -250,6 +271,8 @@ const pictureModalOpen = ref(false)
 const pictureModalBusy = ref(false)
 const pictureModalChanged = ref(false)
 const editingPictureId = ref<string>()
+const shareModalOpen = ref(false)
+const sharePictureUrl = ref('')
 let generation = 0
 let pictureGeneration = 0
 
@@ -428,6 +451,12 @@ const searchByPicture = (picture: API.PictureVO) => {
   void router.push({ name: '以图搜图', params: { id: String(picture.id) } })
 }
 
+const sharePicture = (picture: API.PictureVO) => {
+  if (!picture.url || deleting.value) return
+  sharePictureUrl.value = picture.url
+  shareModalOpen.value = true
+}
+
 const createPicture = () => {
   if (!space.value) {
     message.error('空间尚未加载')
@@ -495,6 +524,8 @@ watch(
     pictureModalOpen.value = false
     pictureModalBusy.value = false
     pictureModalChanged.value = false
+    shareModalOpen.value = false
+    sharePictureUrl.value = ''
     void loadSpace()
   },
   { immediate: true },
@@ -628,6 +659,17 @@ onBeforeUnmount(() => {
 
 .picture-error {
   margin-bottom: 16px;
+}
+
+.picture-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(96px, 40%)), 1fr));
+  gap: 4px;
+  width: 100%;
+}
+
+.picture-action-grid :deep(.ant-btn) {
+  padding-inline: 6px;
 }
 
 .picture-results {
