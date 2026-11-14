@@ -177,6 +177,17 @@
                     编辑画面
                   </a-button>
                   <a-button
+                    v-if="canEditImage"
+                    type="text"
+                    class="picture-action--edit"
+                    :disabled="!picture.id || !picture.url || deleting"
+                    :aria-label="`AI 扩图 ${picture.name || '未命名'}`"
+                    @click="openOutPainting(picture)"
+                  >
+                    <template #icon><PictureOutlined /></template>
+                    AI 扩图
+                  </a-button>
+                  <a-button
                     type="text"
                     class="picture-action--edit"
                     :disabled="!picture.id || deleting"
@@ -292,6 +303,12 @@
         @save="saveEditedImage"
       />
     </a-modal>
+    <OutPaintingModal
+      v-if="outPaintingPicture"
+      :open="outPaintingOpen"
+      :picture="outPaintingPicture"
+      @close="outPaintingOpen = false"
+    />
     <ShareModal v-model:open="shareModalOpen" :url="sharePictureUrl" />
   </div>
 </template>
@@ -325,6 +342,7 @@ import PictureSerachForm from '@/components/PictureSerachForm.vue'
 import ShareModal from '@/components/ShareModal.vue'
 import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
 import ImageEditor from '@/components/ImageEditor.vue'
+import OutPaintingModal from '@/components/OutPaintingModal.vue'
 import { SPACE_TYPE_ENUM } from '@/constants/space'
 import '@/assets/picture-actions.css'
 
@@ -379,6 +397,8 @@ const imageEditorOpen = ref(false)
 const imageEditorBusy = ref(false)
 const imageEditorSaving = ref(false)
 const imageToEdit = ref<API.PictureVO>()
+const outPaintingOpen = ref(false)
+const outPaintingPicture = ref<API.PictureVO>()
 let pictureModalTrigger: HTMLElement | null = null
 let imageEditorTrigger: HTMLElement | null = null
 const shareModalOpen = ref(false)
@@ -718,6 +738,12 @@ const openImageEditor = (picture: API.PictureVO) => {
   imageEditorOpen.value = true
 }
 
+const openOutPainting = (picture: API.PictureVO) => {
+  if (!picture.id || !picture.url || !canEditImage.value || deleting.value) return
+  outPaintingPicture.value = picture
+  outPaintingOpen.value = true
+}
+
 const restorePictureFocus = () => {
   if (pictureModalTrigger?.isConnected) pictureModalTrigger.focus({ preventScroll: true })
   pictureModalTrigger = null
@@ -752,6 +778,8 @@ const saveEditedImage = async (file: File) => {
     }
     imageEditorOpen.value = false
     imageToEdit.value = undefined
+    outPaintingOpen.value = false
+    outPaintingPicture.value = undefined
     message.success('已保存为新图片，原图未改变')
     imageEditorBusy.value = false
     imageEditorSaving.value = false

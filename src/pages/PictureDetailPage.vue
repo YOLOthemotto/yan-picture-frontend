@@ -77,6 +77,15 @@
               <template #icon><EditOutlined /></template>
               编辑
             </a-button>
+            <a-button
+              type="text"
+              class="picture-action--edit"
+              :disabled="!canEdit || !picture.id || !picture.url"
+              @click="outPaintingOpen = true"
+            >
+              <template #icon><PictureOutlined /></template>
+              AI 扩图
+            </a-button>
             <a-button danger type="text" @click="doDelete" :disabled="!canEdit">
               <template #icon><DeleteOutlined /></template>
               删除
@@ -86,6 +95,7 @@
       </a-col>
     </a-row>
     <ShareModal v-model:open="shareModalOpen" :url="picture.url" />
+    <OutPaintingModal :open="outPaintingOpen" :picture="picture" @close="outPaintingOpen = false" />
   </div>
 </template>
 
@@ -99,10 +109,12 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   ShareAltOutlined,
+  PictureOutlined,
 } from '@ant-design/icons-vue'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { useRouter } from 'vue-router'
 import ShareModal from '@/components/ShareModal.vue'
+import OutPaintingModal from '@/components/OutPaintingModal.vue'
 import '@/assets/picture-actions.css'
 
 interface Props {
@@ -112,6 +124,7 @@ interface Props {
 const props = defineProps<Props>()
 const picture = ref<API.PictureVO>({})
 const shareModalOpen = ref(false)
+const outPaintingOpen = ref(false)
 const loginUserStore = useLoginUserStore()
 
 const pictureColor = computed(() => picture.value.picColor?.trim().replace(/^0x/i, '#'))
