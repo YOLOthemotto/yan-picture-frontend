@@ -1,15 +1,17 @@
 <template>
-  <details class="picture-search" open>
+  <details class="picture-search">
     <summary class="filter-toggle">
+      <FilterOutlined class="filter-icon" aria-hidden="true" />
       <span class="filter-label">
-        <span>搜索条件</span>
+        <span class="filter-title">筛选图片</span>
+        <span class="filter-description">按关键词、分类、标签等查找</span>
         <span v-if="appliedFilterCount" class="filter-count">
           已应用 {{ appliedFilterCount }} 项
         </span>
       </span>
       <span class="toggle-action">
-        <span class="expand-label">展开</span>
-        <span class="collapse-label">收起</span>
+        <span class="expand-label">展开筛选</span>
+        <span class="collapse-label">收起筛选</span>
         <DownOutlined class="toggle-icon" aria-hidden="true" />
       </span>
     </summary>
@@ -91,7 +93,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
-import { DownOutlined } from '@ant-design/icons-vue'
+import { DownOutlined, FilterOutlined } from '@ant-design/icons-vue'
 import { listPictureTagCategoryUsingGet } from '@/api/pictureController'
 
 const props = defineProps<{
@@ -194,21 +196,30 @@ const reset = () => {
 
 <style scoped>
 .picture-search {
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  min-width: 0;
 }
 
 .filter-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  min-height: 40px;
+  min-height: 56px;
+  padding: 8px 12px;
   list-style: none;
   cursor: pointer;
   color: #262626;
-  font-weight: 500;
+  border: 1px solid #d9e3f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.filter-toggle:hover {
+  border-color: #91caff;
+}
+
+.filter-icon {
+  color: #1677ff;
+  font-size: 16px;
 }
 
 .filter-toggle::-webkit-details-marker {
@@ -228,7 +239,18 @@ const reset = () => {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
+  flex: 1;
   gap: 8px;
+  min-width: 0;
+}
+
+.filter-title {
+  font-weight: 600;
+}
+
+.filter-description {
+  color: #595959;
+  font-size: 12px;
 }
 
 .filter-count {
@@ -260,7 +282,7 @@ const reset = () => {
 }
 
 .picture-search-form {
-  margin-top: 8px;
+  margin-top: 16px;
 }
 
 .filter-actions {

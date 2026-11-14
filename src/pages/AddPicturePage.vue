@@ -55,6 +55,27 @@
           />
         </a-tab-pane>
       </a-tabs>
+      <div v-if="canEditImage" class="image-edit-action">
+        <a-button :disabled="uploadBusy || submitting" @click="openImageEditor">
+          <template #icon><PictureOutlined /></template>
+          编辑画面
+        </a-button>
+        <span>
+          {{
+            isEditing
+              ? '保存画面后会创建新图片，原图不受影响。'
+              : '保存画面后会更新当前上传的图片。'
+          }}
+        </span>
+      </div>
+      <a-alert
+        v-if="editingCopy"
+        class="copy-notice"
+        type="success"
+        show-icon
+        message="已上传编辑后的新图片"
+        description="下方信息保存到新图片，原图片保持不变。关闭页面不会撤销已上传的图片。"
+      />
       <a-form
         v-if="picture"
         name="pictureForm"
@@ -102,6 +123,29 @@
           </a-button>
         </a-form-item>
       </a-form>
+      <a-modal
+        :open="imageEditorOpen"
+        title="编辑画面"
+        :footer="null"
+        :width="900"
+        :closable="!imageEditorBusy"
+        :mask-closable="!imageEditorBusy"
+        :keyboard="!imageEditorBusy"
+        destroy-on-close
+        @cancel="closeImageEditor"
+      >
+        <ImageEditor
+          v-if="imageEditorOpen && picture?.url"
+          :src="picture.url"
+          :name="picture.name"
+          :format="picture.picFormat"
+          :saving="imageEditorSaving"
+          :replace="!isEditing"
+          @busy="imageEditorBusy = $event"
+          @cancel="closeImageEditor"
+          @save="saveEditedImage"
+        />
+      </a-modal>
     </template>
   </div>
 </template>
@@ -110,16 +154,21 @@
 import PictureUpload from '@/components/PictureUpload.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { message, type SelectProps } from 'ant-design-vue'
+import { PictureOutlined } from '@ant-design/icons-vue'
 import {
   editPictureUsingPost,
   getPictureVoByIdUsingGet,
   listPictureTagCategoryUsingGet,
+  uploadPictureUsingPost,
 } from '@/api/pictureController.ts'
 import { useRoute, useRouter } from 'vue-router'
 import UrlPictureUpload from '@/components/UrlPictureUpload.vue'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
 import { formatSize } from '@/utils'
+import ImageEditor from '@/components/ImageEditor.vue'
+import { SPACE_TYPE_ENUM } from '@/constants/space'
+import { useLoginUserStore } from '@/stores/useLoginUserStore'
 const props = defineProps<{
   embedded?: boolean
   initialPictureId?: string
@@ -144,11 +193,89 @@ const contextLoading = ref(true)
 const contextError = ref('')
 const submitting = ref(false)
 const uploadBusy = ref(false)
+const imageEditorOpen = ref(false)
+const imageEditorBusy = ref(false)
+const imageEditorSaving = ref(false)
+const editingCopy = ref(false)
+const loginUserStore = useLoginUserStore()
+const canEditImage = computed(() => {
+  const ownerId = targetSpace.value?.userId ?? targetSpace.value?.user?.id
+  const userId = loginUserStore.loginUser.id
+  if (!picture.value?.id || !picture.value.url) return false
+  if (!isEditing.value && targetSpaceId.value == null) {
+    return picture.value.spaceId == null
+  }
+  return (
+    picture.value.spaceId != null &&
+    String(picture.value.spaceId) === targetSpaceId.value &&
+    targetSpace.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE &&
+    ownerId != null &&
+    userId != null &&
+    String(ownerId) === String(userId)
+  )
+})
 let contextGeneration = 0
 let spaceGeneration = 0
 const setUploadBusy = (value: boolean) => {
   uploadBusy.value = value
-  emit('busy', value || submitting.value)
+  emit('busy', value || submitting.value || imageEditorOpen.value)
+}
+
+const openImageEditor = () => {
+  if (!canEditImage.value || uploadBusy.value || submitting.value) return
+  imageEditorOpen.value = true
+  emit('busy', true)
+}
+
+const closeImageEditor = () => {
+  if (imageEditorBusy.value || imageEditorSaving.value) return
+  imageEditorOpen.value = false
+  emit('busy', uploadBusy.value || submitting.value)
+}
+
+const saveEditedImage = async (file: File) => {
+  const currentPicture = picture.value
+  if (!canEditImage.value || !currentPicture?.id) {
+    message.error('图片或空间信息已变化，请重新打开图片编辑器')
+    return
+  }
+  const replace = !isEditing.value
+  const params: API.uploadPictureUsingPOSTParams = {
+    spaceId: currentPicture.spaceId,
+    ...(replace ? { id: currentPicture.id, picName: currentPicture.name } : {}),
+  }
+  const generation = contextGeneration
+  imageEditorBusy.value = true
+  imageEditorSaving.value = true
+  try {
+    const res = await uploadPictureUsingPost(params, {}, file)
+    if (generation !== contextGeneration) return
+    if (res.data.code !== 0 || !res.data.data) {
+      message.error('保存画面失败：' + (res.data.message || '请稍后重试'))
+      return
+    }
+    emit('changed')
+    if (!res.data.data.id || !res.data.data.url) {
+      message.error('图片已上传，但返回的图片信息不完整，请关闭后在空间中查看。')
+      return
+    }
+    picture.value = res.data.data
+    editingCopy.value = !replace
+    imageEditorOpen.value = false
+    emit('busy', uploadBusy.value || submitting.value)
+    message.success(replace ? '图片画面已更新' : '已保存为新图片，原图未改变')
+    if (targetSpaceId.value) void loadSpaceInfo(targetSpaceId.value, generation)
+  } catch (error) {
+    if (generation === contextGeneration) {
+      console.error('保存画面失败:', error)
+      message.error('保存画面失败，请检查网络后重试')
+    }
+  } finally {
+    if (generation === contextGeneration) {
+      imageEditorBusy.value = false
+      imageEditorSaving.value = false
+    }
+  }
 }
 
 /**
@@ -197,7 +324,7 @@ const handleSubmit = async (values: API.PictureEditRequest) => {
     await message.error('保存图片失败，请检查网络后重试')
   } finally {
     submitting.value = false
-    emit('busy', uploadBusy.value)
+    emit('busy', uploadBusy.value || imageEditorOpen.value)
   }
 }
 
@@ -245,6 +372,10 @@ const loadContext = async () => {
   targetSpaceId.value = undefined
   targetSpace.value = undefined
   picture.value = undefined
+  editingCopy.value = false
+  imageEditorOpen.value = false
+  imageEditorBusy.value = false
+  imageEditorSaving.value = false
   Object.assign(pictureForm, {
     name: undefined,
     tags: undefined,
@@ -340,5 +471,21 @@ onBeforeUnmount(() => {
 .space-notice {
   margin-bottom: 16px;
   overflow-wrap: anywhere;
+}
+
+.image-edit-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 16px;
+}
+
+.image-edit-action > span {
+  color: #595959;
+}
+
+.copy-notice {
+  margin-bottom: 16px;
 }
 </style>

@@ -40,60 +40,68 @@
         <h2>空间图片</h2>
         <span v-if="space.totalCount != null">{{ space.totalCount }} 张</span>
       </div>
-      <div class="search-modes" role="group" aria-label="搜索方式">
-        <a-button
-          :type="searchMode === 'filters' ? 'primary' : 'default'"
-          :disabled="deleting"
-          :aria-pressed="searchMode === 'filters'"
-          @click="setSearchMode('filters')"
-          >条件搜索</a-button
-        >
-        <a-button
-          :type="searchMode === 'color' ? 'primary' : 'default'"
-          :disabled="deleting"
-          :aria-pressed="searchMode === 'color'"
-          @click="setSearchMode('color')"
-          >颜色搜索</a-button
-        >
-      </div>
-      <PictureSerachForm
-        v-if="searchMode === 'filters'"
-        :initial-values="searchFilters"
-        :disabled="deleting"
-        @search="searchPictures"
-      />
-      <form v-else class="color-search" @submit.prevent="submitColorSearch">
-        <div class="color-controls">
-          <span>选择颜色</span>
-          <a-popover v-model:open="colorPickerOpen" trigger="click" placement="bottomLeft">
-            <template #content>
-              <Sketch
-                :model-value="selectedColor"
-                :preset-colors="presetColors"
-                disable-alpha
-                @update:model-value="updateSelectedColor"
-              />
-            </template>
+      <section class="search-panel" aria-label="搜索图片">
+        <div class="search-panel-header">
+          <div class="search-heading">
+            <SearchOutlined aria-hidden="true" />
+            <span>搜索图片</span>
+          </div>
+          <div class="search-modes" role="group" aria-label="搜索方式">
             <a-button
+              :class="{ 'search-mode-active': searchMode === 'filters' }"
               :disabled="deleting"
-              :aria-label="`选择颜色，当前 ${selectedColor.toUpperCase()}`"
-              :aria-expanded="colorPickerOpen"
+              :aria-pressed="searchMode === 'filters'"
+              @click="setSearchMode('filters')"
+              >条件搜索</a-button
             >
-              <span class="color-swatch" :style="{ backgroundColor: selectedColor }"></span>
-              {{ selectedColor.toUpperCase() }}
-            </a-button>
-          </a-popover>
-          <a-button type="primary" html-type="submit" :disabled="deleting">搜索颜色</a-button>
+            <a-button
+              :class="{ 'search-mode-active': searchMode === 'color' }"
+              :disabled="deleting"
+              :aria-pressed="searchMode === 'color'"
+              @click="setSearchMode('color')"
+              >颜色搜索</a-button
+            >
+          </div>
         </div>
-        <p>颜色搜索与条件搜索相互独立，不会组合筛选。</p>
-        <p v-if="appliedColor" class="applied-color">
-          当前结果颜色：<span
-            class="color-swatch"
-            :style="{ backgroundColor: appliedColor }"
-          ></span>
-          {{ appliedColor.toUpperCase() }}
-        </p>
-      </form>
+        <PictureSerachForm
+          v-if="searchMode === 'filters'"
+          :initial-values="searchFilters"
+          :disabled="deleting"
+          @search="searchPictures"
+        />
+        <form v-else class="color-search" @submit.prevent="submitColorSearch">
+          <div class="color-controls">
+            <span>选择颜色</span>
+            <a-popover v-model:open="colorPickerOpen" trigger="click" placement="bottomLeft">
+              <template #content>
+                <Sketch
+                  :model-value="selectedColor"
+                  :preset-colors="presetColors"
+                  disable-alpha
+                  @update:model-value="updateSelectedColor"
+                />
+              </template>
+              <a-button
+                :disabled="deleting"
+                :aria-label="`选择颜色，当前 ${selectedColor.toUpperCase()}`"
+                :aria-expanded="colorPickerOpen"
+              >
+                <span class="color-swatch" :style="{ backgroundColor: selectedColor }"></span>
+                {{ selectedColor.toUpperCase() }}
+              </a-button>
+            </a-popover>
+            <a-button type="primary" html-type="submit" :disabled="deleting">搜索颜色</a-button>
+          </div>
+          <p>颜色搜索与条件搜索相互独立，不会组合筛选。</p>
+          <p v-if="appliedColor" class="applied-color">
+            当前结果颜色：<span
+              class="color-swatch"
+              :style="{ backgroundColor: appliedColor }"
+            ></span>
+            {{ appliedColor.toUpperCase() }}
+          </p>
+        </form>
+      </section>
       <div v-if="canManagePictures" class="batch-toolbar">
         <a-button
           type="primary"
@@ -155,56 +163,73 @@
               />
             </template>
             <template #actions="{ picture }">
-              <div class="picture-action-grid">
-                <a-button
-                  type="text"
-                  class="picture-action--share"
-                  :disabled="!picture.url || deleting"
-                  :aria-label="`分享图片 ${picture.name || '未命名'}`"
-                  @click="sharePicture(picture)"
-                >
-                  <template #icon><ShareAltOutlined /></template>
-                  分享
-                </a-button>
-                <a-button
-                  type="text"
-                  class="picture-action--search"
-                  :disabled="!picture.id || deleting"
-                  :aria-label="`以图搜图 ${picture.name || '未命名'}`"
-                  @click="searchByPicture(picture)"
-                >
-                  <template #icon><SearchOutlined /></template>
-                  以图搜图
-                </a-button>
-                <a-button
-                  v-if="canManagePictures"
-                  type="text"
-                  class="picture-action--edit"
-                  :disabled="!picture.id || deleting"
-                  :aria-label="`编辑图片 ${picture.name || '未命名'}`"
-                  @click="editPicture(picture)"
-                >
-                  <template #icon><EditOutlined /></template>
-                  编辑
-                </a-button>
-                <a-popconfirm
-                  v-if="canManagePictures"
-                  title="确定删除这张图片吗？"
-                  ok-text="删除"
-                  cancel-text="取消"
-                  :disabled="!picture.id || deleting"
-                  @confirm="deletePicture(picture)"
-                >
+              <div class="picture-action-groups">
+                <div v-if="canManagePictures" class="picture-edit-actions">
+                  <a-button
+                    v-if="canEditImage"
+                    type="text"
+                    class="picture-action--edit"
+                    :disabled="!picture.url || deleting"
+                    :aria-label="`编辑画面 ${picture.name || '未命名'}`"
+                    @click="openImageEditor(picture)"
+                  >
+                    <template #icon><PictureOutlined /></template>
+                    编辑画面
+                  </a-button>
                   <a-button
                     type="text"
-                    danger
+                    class="picture-action--edit"
                     :disabled="!picture.id || deleting"
-                    :aria-label="`删除图片 ${picture.name || '未命名'}`"
+                    :aria-label="`编辑图片信息 ${picture.name || '未命名'}`"
+                    @click="editPicture(picture)"
                   >
-                    <template #icon><DeleteOutlined /></template>
-                    删除
+                    <template #icon><EditOutlined /></template>
+                    编辑信息
                   </a-button>
-                </a-popconfirm>
+                </div>
+                <div class="picture-utility-actions">
+                  <a-button
+                    type="text"
+                    class="picture-action--share"
+                    :disabled="!picture.url || deleting"
+                    :aria-label="`分享图片 ${picture.name || '未命名'}`"
+                    title="分享"
+                    @click="sharePicture(picture)"
+                  >
+                    <template #icon><ShareAltOutlined /></template>
+                    <span class="utility-label">分享</span>
+                  </a-button>
+                  <a-button
+                    type="text"
+                    class="picture-action--search"
+                    :disabled="!picture.id || deleting"
+                    :aria-label="`以图搜图 ${picture.name || '未命名'}`"
+                    title="以图搜图"
+                    @click="searchByPicture(picture)"
+                  >
+                    <template #icon><SearchOutlined /></template>
+                    <span class="utility-label">以图搜图</span>
+                  </a-button>
+                  <a-popconfirm
+                    v-if="canManagePictures"
+                    title="确定删除这张图片吗？"
+                    ok-text="删除"
+                    cancel-text="取消"
+                    :disabled="!picture.id || deleting"
+                    @confirm="deletePicture(picture)"
+                  >
+                    <a-button
+                      type="text"
+                      danger
+                      :disabled="!picture.id || deleting"
+                      :aria-label="`删除图片 ${picture.name || '未命名'}`"
+                      title="删除"
+                    >
+                      <template #icon><DeleteOutlined /></template>
+                      <span class="utility-label">删除</span>
+                    </a-button>
+                  </a-popconfirm>
+                </div>
               </div>
             </template>
           </PictureWaterfallList>
@@ -218,9 +243,11 @@
       :closable="!pictureModalBusy"
       :mask-closable="!pictureModalBusy"
       :keyboard="!pictureModalBusy"
+      :focus-trigger-after-close="false"
       :width="720"
       destroy-on-close
       @cancel="closePictureModal"
+      @after-close="restorePictureFocus"
     >
       <AddPicturePage
         v-if="pictureModalOpen"
@@ -241,6 +268,30 @@
       @close="batchModalOpen = false"
       @saved="batchSaved"
     />
+    <a-modal
+      :open="imageEditorOpen"
+      title="编辑画面"
+      :footer="null"
+      :width="900"
+      :closable="!imageEditorBusy"
+      :mask-closable="!imageEditorBusy"
+      :keyboard="!imageEditorBusy"
+      :focus-trigger-after-close="false"
+      destroy-on-close
+      @cancel="closeImageEditor"
+      @after-close="restoreImageEditorFocus"
+    >
+      <ImageEditor
+        v-if="imageEditorOpen && imageToEdit?.url"
+        :src="imageToEdit.url"
+        :name="imageToEdit.name"
+        :format="imageToEdit.picFormat"
+        :saving="imageEditorSaving"
+        @busy="imageEditorBusy = $event"
+        @cancel="closeImageEditor"
+        @save="saveEditedImage"
+      />
+    </a-modal>
     <ShareModal v-model:open="shareModalOpen" :url="sharePictureUrl" />
   </div>
 </template>
@@ -253,6 +304,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
+  PictureOutlined,
   SearchOutlined,
   ShareAltOutlined,
 } from '@ant-design/icons-vue'
@@ -262,6 +314,7 @@ import {
   deletePictureUsingPost,
   listPictureVoByPageUsingPost,
   searchPictureByColorUsingPost,
+  uploadPictureUsingPost,
 } from '@/api/pictureController.ts'
 import PictureWaterfallList from '@/components/PictureWaterfallList.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
@@ -271,6 +324,8 @@ import { formatSize } from '@/utils'
 import PictureSerachForm from '@/components/PictureSerachForm.vue'
 import ShareModal from '@/components/ShareModal.vue'
 import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
+import ImageEditor from '@/components/ImageEditor.vue'
+import { SPACE_TYPE_ENUM } from '@/constants/space'
 import '@/assets/picture-actions.css'
 
 const props = defineProps<{ id: number | string }>()
@@ -320,6 +375,12 @@ const pictureModalOpen = ref(false)
 const pictureModalBusy = ref(false)
 const pictureModalChanged = ref(false)
 const editingPictureId = ref<string>()
+const imageEditorOpen = ref(false)
+const imageEditorBusy = ref(false)
+const imageEditorSaving = ref(false)
+const imageToEdit = ref<API.PictureVO>()
+let pictureModalTrigger: HTMLElement | null = null
+let imageEditorTrigger: HTMLElement | null = null
 const shareModalOpen = ref(false)
 const sharePictureUrl = ref('')
 let generation = 0
@@ -330,6 +391,9 @@ const canManagePictures = computed(() => {
   const userId = loginUserStore.loginUser.id
   return ownerId != null && userId != null && String(ownerId) === String(userId)
 })
+const canEditImage = computed(
+  () => canManagePictures.value && space.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE,
+)
 
 const remainingSize = computed(() => {
   if (space.value?.maxSize == null || space.value.totalSize == null) return undefined
@@ -453,6 +517,87 @@ const loadColorPictures = async () => {
   }
 }
 
+const refreshSpace = async () => {
+  const id = space.value?.id
+  if (id == null) {
+    message.error('空间信息不可用，请刷新页面重试')
+    return
+  }
+  const requestGeneration = generation
+  const requestPictureGeneration = ++pictureGeneration
+  const mode = searchMode.value
+  const pagesToRefresh = Math.max(1, currentPage.value - 1)
+  const filters = { ...searchFilters.value }
+  const color = appliedColor.value
+  pictureLoading.value = true
+  pictureError.value = ''
+
+  const isCurrent = () =>
+    requestGeneration === generation && requestPictureGeneration === pictureGeneration
+
+  try {
+    const spaceRequest = getSpaceVoByIdUsingGet({ id })
+    const picturesRequest = async () => {
+      if (mode === 'color') {
+        if (!color) return { records: [], lastPage: [], nextPage: 1, hasMore: false }
+        const res = await searchPictureByColorUsingPost({ spaceId: id, picColor: color })
+        if (res.data.code !== 0 || !Array.isArray(res.data.data)) {
+          throw new Error(res.data.message || '颜色搜索失败')
+        }
+        return { records: res.data.data, lastPage: res.data.data, nextPage: 1, hasMore: false }
+      }
+
+      const records: API.PictureVO[] = []
+      let lastPage: API.PictureVO[] = []
+      let nextPage = 1
+      let more = false
+      for (let page = 1; page <= pagesToRefresh; page++) {
+        const res = await listPictureVoByPageUsingPost({
+          ...filters,
+          spaceId: id,
+          current: page,
+          pageSize,
+        })
+        if (!isCurrent()) return
+        if (res.data.code !== 0 || !res.data.data) {
+          throw new Error(res.data.message || '获取空间图片失败')
+        }
+        const result = res.data.data
+        const pageRecords = result.records ?? []
+        if (pageRecords.length || page === 1) lastPage = pageRecords
+        records.push(...pageRecords)
+        nextPage = page + 1
+        more =
+          pageRecords.length > 0 &&
+          (result.total != null ? records.length < result.total : pageRecords.length === pageSize)
+        if (!more) break
+      }
+      return { records, lastPage, nextPage, hasMore: more }
+    }
+
+    const [spaceResponse, pictures] = await Promise.all([spaceRequest, picturesRequest()])
+    if (!isCurrent() || !pictures) return
+    if (spaceResponse.data.code !== 0 || !spaceResponse.data.data) {
+      throw new Error(spaceResponse.data.message || '获取空间信息失败')
+    }
+    space.value = spaceResponse.data.data
+    dataList.value = pictures.records
+    currentPagePictures.value = pictures.lastPage
+    currentPage.value = pictures.nextPage
+    hasMore.value = pictures.hasMore
+    selectedPictureIds.value = selectedPictureIds.value.filter((id) =>
+      pictures.records.some((picture) => picture.id === id),
+    )
+  } catch (error) {
+    if (isCurrent()) {
+      console.error('刷新空间失败:', error)
+      message.error('刷新空间失败，请检查网络后重试')
+    }
+  } finally {
+    if (isCurrent()) pictureLoading.value = false
+  }
+}
+
 const resetPictureResults = () => {
   pictureGeneration++
   dataList.value = []
@@ -533,7 +678,7 @@ const openBatchEdit = () => {
 const batchSaved = () => {
   batchModalOpen.value = false
   selectedPictureIds.value = []
-  void loadSpace()
+  void refreshSpace()
 }
 
 const searchByPicture = (picture: API.PictureVO) => {
@@ -553,15 +698,75 @@ const createPicture = () => {
     return
   }
   editingPictureId.value = undefined
+  pictureModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
   pictureModalChanged.value = false
   pictureModalOpen.value = true
 }
 
 const editPicture = (picture: API.PictureVO) => {
   if (!picture.id || !canManagePictures.value || deleting.value) return
+  pictureModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
   editingPictureId.value = String(picture.id)
   pictureModalChanged.value = false
   pictureModalOpen.value = true
+}
+
+const openImageEditor = (picture: API.PictureVO) => {
+  if (!picture.url || !canEditImage.value || deleting.value) return
+  imageEditorTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  imageToEdit.value = picture
+  imageEditorOpen.value = true
+}
+
+const restorePictureFocus = () => {
+  if (pictureModalTrigger?.isConnected) pictureModalTrigger.focus({ preventScroll: true })
+  pictureModalTrigger = null
+}
+
+const restoreImageEditorFocus = () => {
+  if (imageEditorTrigger?.isConnected) imageEditorTrigger.focus({ preventScroll: true })
+  imageEditorTrigger = null
+}
+
+const closeImageEditor = () => {
+  if (imageEditorBusy.value) return
+  imageEditorOpen.value = false
+  imageToEdit.value = undefined
+}
+
+const saveEditedImage = async (file: File) => {
+  const spaceId = space.value?.id
+  if (!canEditImage.value || spaceId == null || String(spaceId) !== String(props.id)) {
+    message.error('空间信息已变化，请重新打开图片编辑器')
+    return
+  }
+  const requestGeneration = generation
+  imageEditorBusy.value = true
+  imageEditorSaving.value = true
+  try {
+    const res = await uploadPictureUsingPost({ spaceId }, {}, file)
+    if (requestGeneration !== generation) return
+    if (res.data.code !== 0 || !res.data.data) {
+      message.error('保存新图片失败：' + (res.data.message || '请稍后重试'))
+      return
+    }
+    imageEditorOpen.value = false
+    imageToEdit.value = undefined
+    message.success('已保存为新图片，原图未改变')
+    imageEditorBusy.value = false
+    imageEditorSaving.value = false
+    await refreshSpace()
+  } catch (error) {
+    if (requestGeneration === generation) {
+      console.error('保存新图片失败:', error)
+      message.error('保存新图片失败，请检查网络后重试')
+    }
+  } finally {
+    if (requestGeneration === generation) {
+      imageEditorBusy.value = false
+      imageEditorSaving.value = false
+    }
+  }
 }
 
 const closePictureModal = () => {
@@ -569,14 +774,14 @@ const closePictureModal = () => {
   pictureModalOpen.value = false
   if (pictureModalChanged.value) {
     pictureModalChanged.value = false
-    void loadSpace()
+    void refreshSpace()
   }
 }
 
 const pictureSaved = () => {
   pictureModalOpen.value = false
   pictureModalChanged.value = false
-  void loadSpace()
+  void refreshSpace()
 }
 
 const deletePicture = async (picture: API.PictureVO) => {
@@ -592,7 +797,7 @@ const deletePicture = async (picture: API.PictureVO) => {
     }
     message.success('图片已删除')
     deleting.value = false
-    await loadSpace()
+    await refreshSpace()
   } catch (error) {
     if (requestGeneration === generation) {
       console.error('删除图片失败:', error)
@@ -614,6 +819,10 @@ watch(
     pictureModalOpen.value = false
     pictureModalBusy.value = false
     pictureModalChanged.value = false
+    imageEditorOpen.value = false
+    imageToEdit.value = undefined
+    imageEditorBusy.value = false
+    imageEditorSaving.value = false
     batchModalOpen.value = false
     batchPictures.value = []
     shareModalOpen.value = false
@@ -702,7 +911,57 @@ onBeforeUnmount(() => {
   color: #595959;
 }
 
-.search-modes,
+.search-panel {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+
+.search-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.search-heading :deep(.anticon) {
+  color: #1677ff;
+}
+
+.search-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: #e8edf4;
+}
+
+.search-modes :deep(.ant-btn) {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: #595959;
+}
+
+.search-modes :deep(.ant-btn.search-mode-active) {
+  color: #0958d9;
+  background: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .color-controls {
   display: flex;
   align-items: center;
@@ -710,14 +969,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.search-modes {
-  margin-bottom: 12px;
-}
-
 .color-search {
-  margin-bottom: 24px;
-  padding: 8px 0 16px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 12px;
+  border: 1px solid #d9e3f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .color-controls > span {
@@ -798,15 +1054,45 @@ onBeforeUnmount(() => {
   }
 }
 
-.picture-action-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(96px, 40%)), 1fr));
-  gap: 4px;
+.picture-action-groups {
+  container-type: inline-size;
   width: 100%;
 }
 
-.picture-action-grid :deep(.ant-btn) {
-  padding-inline: 6px;
+.picture-edit-actions,
+.picture-utility-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.picture-utility-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.picture-edit-actions + .picture-utility-actions {
+  margin-top: 4px;
+}
+
+.picture-action-groups :deep(.ant-btn) {
+  min-width: 0;
+  height: 36px;
+  padding-inline: 4px;
+}
+
+@container (max-width: 230px) {
+  .picture-utility-actions :deep(.ant-btn) {
+    flex-direction: column;
+    justify-content: center;
+    height: 48px;
+    gap: 2px;
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .picture-utility-actions :deep(.ant-btn-icon + span) {
+    margin-inline-start: 0;
+  }
 }
 
 .picture-results {
