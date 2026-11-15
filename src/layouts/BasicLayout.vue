@@ -25,7 +25,17 @@ import GlobaSider from '@/components/GlobaSider.vue'
 </script>
 
 <style scoped>
+#basicLayout {
+  --layout-header-height: 64px;
+  --layout-footer-height: 50px;
+}
+
 #basicLayout .header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+  height: var(--layout-header-height);
   padding-inline: 20px 0;
   background-color: white;
   color: unset;
@@ -35,11 +45,16 @@ import GlobaSider from '@/components/GlobaSider.vue'
 #basicLayout .content {
   padding: 28px;
   background: #f1f5f9;
-  min-height: calc(100vh - 64px - 70px);
-  margin-bottom: 28px; /* 留出底部固定 footer 的空间 */
+  min-height: calc(100vh - var(--layout-header-height) - 70px);
+  margin-bottom: var(--layout-footer-height);
 }
 
 #basicLayout .footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--layout-footer-height);
   background-color: rgba(255, 255, 255, 0.96);
   border-top: 1px solid #e2e8f0;
   box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.04);
@@ -48,6 +63,7 @@ import GlobaSider from '@/components/GlobaSider.vue'
   bottom: 0;
   left: 0;
   right: 0;
+  z-index: 100;
   text-align: center;
 }
 
@@ -61,6 +77,13 @@ import GlobaSider from '@/components/GlobaSider.vue'
 }
 
 #basicLayout .sider {
+  position: sticky;
+  top: calc(var(--layout-header-height) + 1px);
+  z-index: 10;
+  align-self: flex-start;
+  flex-shrink: 0;
+  height: calc(100vh - var(--layout-header-height) - var(--layout-footer-height) - 1px);
+  height: calc(100dvh - var(--layout-header-height) - var(--layout-footer-height) - 1px);
   background-color: white;
   border-right: 1px solid #e2e8f0;
   box-shadow: 4px 0 16px rgba(15, 23, 42, 0.04);

@@ -7,7 +7,12 @@
           v-for="picture in column"
           :key="picture.id"
           class="waterfall-item"
+          :class="{
+            'waterfall-item--overlay-actions': overlayActions,
+            'waterfall-item--actions-open': openActions === picture,
+          }"
           @click="doClickPicture(picture)"
+          @keydown.esc.stop="openActions = undefined"
         >
           <div class="cover" :style="{ background: picture.picColor || '#f0f0f0' }">
             <img
@@ -34,7 +39,18 @@
             </div>
           </div>
           <div class="info">
-            <div class="title">{{ picture.name }}</div>
+            <div class="title-row">
+              <div class="title">{{ picture.name }}</div>
+              <button
+                v-if="overlayActions && $slots.actions"
+                class="actions-trigger"
+                type="button"
+                :aria-label="`操作图片 ${picture.name || '未命名'}`"
+                @click.stop="toggleActions(picture, $event)"
+              >
+                操作
+              </button>
+            </div>
             <div class="tags">
               <a-tag color="green">{{ picture.category ?? '默认' }}</a-tag>
               <a-tag v-for="tag in (picture.tags ?? []).slice(0, 3)" :key="tag">{{ tag }}</a-tag>
@@ -50,7 +66,12 @@
                 {{ picture.picWidth }}×{{ picture.picHeight }}
               </span>
             </div>
-            <div v-if="$slots.actions" class="picture-actions" @click.stop>
+            <div
+              v-if="$slots.actions"
+              class="picture-actions"
+              :class="{ 'picture-actions--open': openActions === picture }"
+              @click.stop
+            >
               <slot name="actions" :picture="picture" />
             </div>
           </div>
@@ -71,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 const props = defineProps<{
@@ -79,12 +100,31 @@ const props = defineProps<{
   loading: boolean
   hasMore: boolean
   emptyDescription?: string
+  overlayActions?: boolean
 }>()
 const emit = defineEmits<{
   loadMore: []
 }>()
 
 const columnCount = ref(5)
+const openActions = shallowRef<API.PictureVO>()
+let openCard: HTMLElement | null = null
+const toggleActions = (picture: API.PictureVO, event: MouseEvent) => {
+  if (openActions.value === picture) {
+    openActions.value = undefined
+    openCard = null
+  } else {
+    openActions.value = picture
+    openCard = (event.currentTarget as HTMLElement).closest('.waterfall-item')
+  }
+}
+
+const closeActionsOnOutsidePointer = (event: PointerEvent) => {
+  if (openCard && event.target instanceof Node && !openCard.contains(event.target)) {
+    openActions.value = undefined
+    openCard = null
+  }
+}
 const updateColumnCount = () => {
   const w = window.innerWidth
   columnCount.value = w <= 480 ? 1 : w <= 768 ? 2 : w <= 1200 ? 3 : w <= 1600 ? 4 : 5
@@ -123,10 +163,12 @@ onMounted(() => {
   updateColumnCount()
   window.addEventListener('resize', updateColumnCount)
   window.addEventListener('scroll', onScroll, { passive: true })
+  document.addEventListener('pointerdown', closeActionsOnOutsidePointer)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
+  document.removeEventListener('pointerdown', closeActionsOnOutsidePointer)
   window.removeEventListener('resize', updateColumnCount)
 })
 </script>
@@ -146,6 +188,7 @@ onBeforeUnmount(() => {
 }
 
 .waterfall-item {
+  position: relative;
   margin-bottom: 16px;
   background: #fff;
   border-radius: 12px;
@@ -160,6 +203,20 @@ onBeforeUnmount(() => {
 .waterfall-item:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.waterfall-item--overlay-actions {
+  overflow: visible;
+}
+
+.waterfall-item--overlay-actions .cover {
+  border-radius: 12px 12px 0 0;
+}
+
+.waterfall-item--overlay-actions:hover,
+.waterfall-item--overlay-actions:focus-within,
+.waterfall-item--actions-open {
+  z-index: 2;
 }
 
 .cover {
@@ -178,6 +235,10 @@ onBeforeUnmount(() => {
   transform: scale(1.05);
 }
 
+.waterfall-item--overlay-actions:hover .cover img {
+  transform: none;
+}
+
 .overlay {
   position: absolute;
   left: 0;
@@ -192,6 +253,10 @@ onBeforeUnmount(() => {
 
 .waterfall-item:hover .overlay {
   opacity: 1;
+}
+
+.waterfall-item--overlay-actions:hover .overlay {
+  opacity: 0;
 }
 
 .overlay-name {
@@ -231,16 +296,46 @@ onBeforeUnmount(() => {
 }
 
 .info {
+  position: relative;
   padding: 10px 12px 12px;
 }
 
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .title {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.actions-trigger {
+  flex: none;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #595959;
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.actions-trigger:hover,
+.actions-trigger:focus-visible {
+  color: #1677ff;
+}
+
+.actions-trigger:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
 }
 
 .tags {
@@ -278,6 +373,40 @@ onBeforeUnmount(() => {
   padding-top: 8px;
   border-top: 1px solid #f0f0f0;
   cursor: default;
+}
+
+.waterfall-item--overlay-actions .picture-actions {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.18s, visibility 0.18s;
+}
+
+.waterfall-item--overlay-actions .picture-actions--open {
+  visibility: visible;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .waterfall-item--overlay-actions:hover .picture-actions,
+  .waterfall-item--overlay-actions:focus-within .picture-actions {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waterfall-item--overlay-actions .picture-actions {
+    transition: none;
+  }
 }
 
 .load-more {

@@ -123,6 +123,10 @@
           清空勾选
         </a-button>
       </div>
+      <p v-if="dataList.length" class="picture-actions-hint">
+        <span class="hover-hint">将鼠标移到图片上，即可查看操作；也可点击图片名称旁的“操作”。</span>
+        <span class="touch-hint">点击图片名称旁的“操作”，即可管理图片。</span>
+      </p>
       <div class="picture-results" :aria-busy="pictureLoading">
         <a-alert v-if="pictureError" type="error" show-icon class="picture-error">
           <template #message>{{ pictureError }}</template>
@@ -140,6 +144,7 @@
             :data-list="dataList"
             :loading="pictureLoading"
             :has-more="hasMore && !pictureError"
+            overlay-actions
             :empty-description="
               searchMode === 'color'
                 ? '没有找到相近颜色的图片'
@@ -171,6 +176,7 @@
                     class="picture-action--edit"
                     :disabled="!picture.url || deleting"
                     :aria-label="`编辑画面 ${picture.name || '未命名'}`"
+                    title="编辑画面"
                     @click="openImageEditor(picture)"
                   >
                     <template #icon><PictureOutlined /></template>
@@ -182,9 +188,10 @@
                     class="picture-action--edit"
                     :disabled="!picture.id || !picture.url || deleting"
                     :aria-label="`AI 扩图 ${picture.name || '未命名'}`"
+                    title="AI 扩图"
                     @click="openOutPainting(picture)"
                   >
-                    <template #icon><PictureOutlined /></template>
+                    <template #icon><ExpandOutlined /></template>
                     AI 扩图
                   </a-button>
                   <a-button
@@ -192,6 +199,7 @@
                     class="picture-action--edit"
                     :disabled="!picture.id || deleting"
                     :aria-label="`编辑图片信息 ${picture.name || '未命名'}`"
+                    title="编辑信息"
                     @click="editPicture(picture)"
                   >
                     <template #icon><EditOutlined /></template>
@@ -320,6 +328,7 @@ import { message } from 'ant-design-vue'
 import {
   DeleteOutlined,
   EditOutlined,
+  ExpandOutlined,
   PlusOutlined,
   PictureOutlined,
   SearchOutlined,
@@ -1083,43 +1092,92 @@ onBeforeUnmount(() => {
 }
 
 .picture-action-groups {
-  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
   width: 100%;
+  max-width: 236px;
+  margin-left: auto;
 }
 
 .picture-edit-actions,
 .picture-utility-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  display: contents;
 }
 
-.picture-utility-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.picture-edit-actions + .picture-utility-actions {
-  margin-top: 4px;
-}
-
-.picture-action-groups :deep(.ant-btn) {
+.picture-action-groups :deep(.ant-btn),
+.picture-action-groups :deep(.ant-btn:not(:disabled)) {
   min-width: 0;
-  height: 36px;
-  padding-inline: 4px;
+  width: 100%;
+  height: 34px;
+  padding-inline: 2px;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  line-height: 1.2;
 }
 
-@container (max-width: 230px) {
-  .picture-utility-actions :deep(.ant-btn) {
-    flex-direction: column;
-    justify-content: center;
-    height: 48px;
-    gap: 2px;
-    font-size: 11px;
-    line-height: 1;
+.picture-action-groups :deep(.ant-btn-icon),
+.picture-action-groups :deep(.ant-btn > .anticon) {
+  display: inline-flex;
+  font-size: 15px;
+}
+
+.picture-action-groups :deep(.ant-btn > span:not(.ant-btn-icon):not(.anticon)) {
+  display: none;
+}
+
+.picture-action-groups :deep(.ant-btn:not(:disabled):hover),
+.picture-action-groups :deep(.ant-btn:not(:disabled):focus-visible) {
+  background: rgba(15, 23, 42, 0.96);
+  color: #fff;
+}
+
+.picture-action-groups :deep(.ant-btn:disabled) {
+  background: rgba(15, 23, 42, 0.72);
+  color: #cbd5e1;
+}
+
+.picture-actions-hint {
+  margin: 0 0 12px;
+  color: #595959;
+  font-size: 13px;
+}
+
+.touch-hint {
+  display: none;
+}
+
+@media (hover: none) {
+  .picture-action-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: none;
   }
 
-  .picture-utility-actions :deep(.ant-btn-icon + span) {
+  .picture-action-groups :deep(.ant-btn) {
+    height: 40px;
+  }
+
+  .picture-action-groups :deep(.ant-btn-icon),
+  .picture-action-groups :deep(.ant-btn > .anticon) {
+    display: none;
+  }
+
+  .picture-action-groups :deep(.ant-btn > span:not(.ant-btn-icon):not(.anticon)) {
+    display: inline;
     margin-inline-start: 0;
+  }
+
+  .hover-hint {
+    display: none;
+  }
+
+  .touch-hint {
+    display: inline;
   }
 }
 

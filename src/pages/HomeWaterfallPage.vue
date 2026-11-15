@@ -32,6 +32,12 @@
       :has-more="hasMore"
       @load-more="loadMore"
     />
+    <a-back-top
+      class="back-to-top"
+      :visibility-height="400"
+      tooltip="回到顶部"
+      aria-label="回到顶部"
+    />
   </div>
 </template>
 
@@ -132,5 +138,17 @@ onMounted(() => {
 .tag-bar {
   margin-bottom: 16px;
   text-align: center;
+}
+
+.back-to-top {
+  right: 24px;
+  bottom: calc(var(--layout-footer-height, 50px) + 24px);
+  width: 44px;
+  height: 44px;
+}
+
+.back-to-top:focus-visible {
+  outline: 2px solid #0958d9;
+  outline-offset: 3px;
 }
 </style>
