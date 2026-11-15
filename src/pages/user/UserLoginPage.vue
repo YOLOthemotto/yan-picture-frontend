@@ -14,7 +14,13 @@
 
       <div class="auth-form-panel">
         <h2 class="title">用户登录</h2>
-        <a-form :model="formState" autocomplete="off" @finish="handleSubmit">
+        <a-form
+          :model="formState"
+          :disabled="submitting"
+          :aria-busy="submitting"
+          autocomplete="off"
+          @finish="handleSubmit"
+        >
           <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">
             <a-input v-model:value="formState.userAccount" placeholder="请输入账号" />
           </a-form-item>
@@ -33,7 +39,16 @@
             <router-link to="/user/register">点击立即注册</router-link>
           </div>
           <a-form-item>
-            <a-button type="primary" html-type="submit" style="width: 100%">登录</a-button>
+            <a-button
+              type="primary"
+              html-type="submit"
+              :loading="submitting"
+              style="width: 100%"
+            >
+              <span role="status" aria-live="polite">
+                {{ loginSucceeded ? '登录成功，正在跳转…' : submitting ? '正在登录…' : '登录' }}
+              </span>
+            </a-button>
           </a-form-item>
         </a-form>
       </div>
@@ -41,7 +56,7 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { loginUsingPost } from '@/api/userController.ts'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { message } from 'ant-design-vue'
@@ -54,25 +69,37 @@ const formState = reactive<API.UserLoginRequest>({
 })
 
 const loginUserStore = useLoginUserStore()
-/**
- * 提交表单
- * @param values
- */
-const handleSubmit = async (values: any) => {
+const submitting = ref(false)
+const loginSucceeded = ref(false)
+
+const handleSubmit = async () => {
+  if (submitting.value) return
+
+  submitting.value = true
+  loginSucceeded.value = false
   try {
     const res = await loginUsingPost(formState)
-    console.log("请求结果" + res.data.code)
     if (res.data.code === 0 && res.data.data) {
-      await loginUserStore.fetchLoginUser()
-      await message.success('登录成功')
-      await router.push({ path: '/', replace: true })
+      loginUserStore.setLoginUser(res.data.data)
+      loginSucceeded.value = true
+      message.success('登录成功')
+      const failure = await router.replace('/')
+      if (failure) {
+        message.error('登录成功，但页面跳转未完成，请重试')
+      }
     } else {
-      await message.error("登录失败: " + res.data.message)
+      message.error('登录失败：' + (res.data.message || '请稍后重试'))
     }
-  } catch (error) {
-    console.log(error)
+  } catch {
+    message.error(
+      loginSucceeded.value
+        ? '登录成功，但页面跳转失败，请重试'
+        : '登录请求失败，请检查网络后重试',
+    )
+  } finally {
+    submitting.value = false
+    loginSucceeded.value = false
   }
-
 }
 </script>
 

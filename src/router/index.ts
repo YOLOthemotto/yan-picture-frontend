@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { HomeOutlined, PictureOutlined, UserOutlined } from '@ant-design/icons-vue'
+import {
+  BarChartOutlined,
+  HomeOutlined,
+  PictureOutlined,
+  UserOutlined,
+} from '@ant-design/icons-vue'
 // import HomePage from '@/pages/HomePage.vue'
 import HomeWaterfallPage from '@/pages/HomeWaterfallPage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
@@ -44,6 +49,18 @@ const router = createRouter({
         siderTitle: '我的空间',
         siderOrder: 2,
         siderIcon: UserOutlined,
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/space_analyze',
+      name: '图库数据分析',
+      component: () => import('@/pages/SpaceAnalyzePage.vue'),
+      meta: {
+        showInSider: true,
+        siderTitle: '数据分析',
+        siderOrder: 3,
+        siderIcon: BarChartOutlined,
         requiresAuth: true,
       },
     },

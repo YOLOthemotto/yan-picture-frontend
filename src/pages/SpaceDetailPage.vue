@@ -30,10 +30,19 @@
             已用 {{ formatSize(space.totalSize) }} / {{ formatSize(space.maxSize) }}
           </p>
         </section>
-        <a-button class="create-picture" type="primary" @click="createPicture">
-          <template #icon><PlusOutlined /></template>
-          创建图片
-        </a-button>
+        <div class="space-header-actions">
+          <a-button
+            v-if="canManagePictures || loginUserStore.loginUser.userRole === 'admin'"
+            @click="router.push({ path: '/space_analyze', query: { spaceId: String(space.id ?? id) } })"
+          >
+            <template #icon><BarChartOutlined /></template>
+            数据分析
+          </a-button>
+          <a-button type="primary" @click="createPicture">
+            <template #icon><PlusOutlined /></template>
+            创建图片
+          </a-button>
+        </div>
       </header>
 
       <div class="pictures-heading">
@@ -326,6 +335,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
+  BarChartOutlined,
   DeleteOutlined,
   EditOutlined,
   ExpandOutlined,
@@ -918,8 +928,11 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.create-picture {
+.space-header-actions {
   grid-area: action;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .usage-heading,
@@ -1208,7 +1221,7 @@ onBeforeUnmount(() => {
       'action';
   }
 
-  .create-picture {
+  .space-header-actions {
     justify-self: start;
   }
 }
