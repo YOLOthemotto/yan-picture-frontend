@@ -1,13 +1,16 @@
 <template>
   <div id="spaceMangerPage">
-    <a-flex justify="space-between" align="middle">
+    <a-flex class="page-toolbar" justify="space-between" align="middle" wrap="wrap" gap="small">
       <h2>空间管理</h2>
       <a-space>
-        <a-button type="primary" href="/add_space" target="_blank">+ 创建空间</a-button>
+        <a-button href="/add_space" target="_blank">创建个人空间</a-button>
+        <a-button type="primary" href="/add_team_space" target="_blank">
+          创建团队空间
+        </a-button>
       </a-space>
     </a-flex>
     <!-- 搜索框 -->
-    <a-form layout="inline" :model="searchParams" @finish="doSearch">
+    <a-form class="space-search-form" layout="inline" :model="searchParams" @finish="doSearch">
       <a-form-item label="空间名称">
         <a-input v-model:value="searchParams.spaceName" placeholder="请输入空间名称" allow-clear />
       </a-form-item>
@@ -20,14 +23,25 @@
           :options="SPACE_LEVEL_OPTIONS"
         />
       </a-form-item>
+      <a-form-item name="spaceType" label="空间类型">
+        <a-select
+          v-model:value="searchParams.spaceType"
+          placeholder="全部类型"
+          style="min-width: 160px"
+          allow-clear
+          :options="SPACE_TYPE_OPTIONS"
+        />
+      </a-form-item>
       <a-form-item label="用户 ID">
         <a-input v-model:value="searchParams.userId" placeholder="请输入用户 ID" allow-clear />
       </a-form-item>
-      <a-form-item>
-        <a-button type="primary" html-type="submit">搜索</a-button>
+      <a-form-item class="search-form-action">
+        <a-button type="primary" html-type="submit">
+          <template #icon><SearchOutlined /></template>
+          搜索
+        </a-button>
       </a-form-item>
     </a-form>
-    <div style="margin-bottom: 16px" />
     <!-- 表格 -->
     <a-table
       :columns="columns"
@@ -38,6 +52,11 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'spaceLevel'">
           <SpaceLevelBadge :level="record.spaceLevel" />
+        </template>
+        <template v-if="column.dataIndex === 'spaceType'">
+          <a-tag :color="record.spaceType === SPACE_TYPE_ENUM.TEAM ? 'blue' : 'default'">
+            {{ SPACE_TYPE_MAP[record.spaceType] || '未知类型' }}
+          </a-tag>
         </template>
         <template v-if="column.dataIndex === 'spaceUseInfo'">
           <div>大小：{{ formatSize(record.totalSize) }} / {{ formatSize(record.maxSize) }}</div>
@@ -63,10 +82,16 @@
 </template>
 <script lang="ts" setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, type TablePaginationConfig } from 'ant-design-vue'
+import { SearchOutlined } from '@ant-design/icons-vue'
 import { deleteSpaceUsingPost, listSpaceByPageUsingPost } from '@/api/spaceController.ts'
 import dayjs from 'dayjs'
-import { SPACE_LEVEL_OPTIONS } from '@/constants/space.ts'
+import {
+  SPACE_LEVEL_OPTIONS,
+  SPACE_TYPE_OPTIONS,
+  SPACE_TYPE_ENUM,
+  SPACE_TYPE_MAP,
+} from '@/constants/space.ts'
 import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
 import { formatSize } from '@/utils'
 
@@ -112,11 +137,11 @@ const columns = [
 ]
 
 //定义数据
-const dataList = ref<API.UserVO[]>([])
+const dataList = ref<API.Space[]>([])
 const total = ref(0)
 
 // 搜索条件
-const searchParams = reactive<API.spaceQueryRequest>({
+const searchParams = reactive<API.SpaceQueryRequest>({
   current: 1,
   pageSize: 10,
 })
@@ -149,9 +174,9 @@ const pagination = computed(() => {
 })
 
 // 表格分页变化
-const doTableChange = (page: any) => {
-  searchParams.current = page.current
-  searchParams.pageSize = page.pageSize
+const doTableChange = (page: TablePaginationConfig) => {
+  searchParams.current = page.current ?? 1
+  searchParams.pageSize = page.pageSize ?? 10
   fetchData()
 }
 
@@ -175,3 +200,72 @@ const doDelete = async (id: number) => {
   }
 }
 </script>
+
+<style scoped>
+.page-toolbar {
+  min-height: 40px;
+  margin-bottom: 20px;
+}
+
+.page-toolbar h2 {
+  margin: 0;
+}
+
+.space-search-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.space-search-form :deep(.ant-form-item) {
+  margin: 0;
+}
+
+.space-search-form :deep(.ant-form-item-control-input) {
+  min-height: 32px;
+}
+
+.search-form-action {
+  margin-left: auto !important;
+}
+
+@media (max-width: 900px) {
+  .space-search-form {
+    align-items: stretch;
+  }
+
+  .space-search-form :deep(.ant-form-item) {
+    flex: 1 1 260px;
+  }
+
+  .space-search-form :deep(.ant-form-item-control),
+  .space-search-form :deep(.ant-input),
+  .space-search-form :deep(.ant-select) {
+    width: 100%;
+  }
+
+  .search-form-action {
+    flex-basis: 100% !important;
+  }
+
+  .search-form-action :deep(.ant-btn) {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .page-toolbar :deep(.ant-space) {
+    width: 100%;
+  }
+
+  .page-toolbar :deep(.ant-btn) {
+    flex: 1;
+  }
+}
+</style>

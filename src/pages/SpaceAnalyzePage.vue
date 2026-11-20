@@ -26,7 +26,7 @@
           aria-label="切换统计范围"
           @change="changeScope"
         />
-        <strong v-else>我的空间</strong>
+        <strong v-else>个人空间</strong>
         <span v-if="scope" class="scope-caption">{{ scopeCaption }}</span>
       </div>
       <form v-if="isAdmin" class="space-filter" @submit.prevent="openSpace">
@@ -57,13 +57,13 @@
       <template #extra>
         <a-button v-if="!forbidden" type="primary" @click="loadContext">重试</a-button>
         <RouterLink v-else to="/space_analyze"
-          ><a-button type="primary">查看我的空间</a-button></RouterLink
+          ><a-button type="primary">查看个人空间</a-button></RouterLink
         >
       </template>
     </a-result>
     <div v-else-if="noSpace" class="context-state">
-      <a-empty description="你还没有图库空间，创建空间后即可查看分析" />
-      <RouterLink to="/add_space"><a-button type="primary">创建空间</a-button></RouterLink>
+      <a-empty description="你还没有个人空间，创建空间后即可查看分析" />
+      <RouterLink to="/add_space"><a-button type="primary">创建个人空间</a-button></RouterLink>
     </div>
     <template v-else-if="scope">
       <SpaceUsageAnalyze :scope="scope" :refresh-key="refreshKey" />
@@ -91,6 +91,7 @@ import SpaceSizeAnalyze from '@/components/space/analyze/SpaceSizeAnalyze.vue'
 import SpaceUserAnalyze from '@/components/space/analyze/SpaceUserAnalyze.vue'
 import SpaceRankAnalyze from '@/components/space/analyze/SpaceRankAnalyze.vue'
 import { isValidIdentifier } from '@/components/space/analyze/chartOptions'
+import { SPACE_TYPE_ENUM } from '@/constants/space'
 
 type ScopeMode = 'space' | 'public' | 'all'
 const route = useRoute()
@@ -171,12 +172,17 @@ const loadContext = async () => {
     let resolvedSpace: API.SpaceVO | undefined
     if (requestedSpaceId == null) {
       const response = await listSpaceVoByPageUsingPost(
-        { current: 1, pageSize: 1, userId: loginUserStore.loginUser.id },
+        {
+          current: 1,
+          pageSize: 1,
+          userId: loginUserStore.loginUser.id,
+          spaceType: SPACE_TYPE_ENUM.PRIVATE,
+        },
         { signal: activeController.signal },
       )
       if (current !== generation) return
       if (response.data.code !== 0 || !response.data.data) {
-        throw new Error(response.data.message || '加载我的空间失败，请重试')
+        throw new Error(response.data.message || '加载个人空间失败，请重试')
       }
       resolvedSpace = response.data.data.records?.[0]
       if (!resolvedSpace) {

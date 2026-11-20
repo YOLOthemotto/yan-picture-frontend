@@ -11,9 +11,14 @@
         <div class="space-heading">
           <div class="space-title">
             <h1>{{ space.spaceName || '未命名空间' }}</h1>
+            <a-tag :color="isTeamSpace ? 'blue' : 'default'">
+              <TeamOutlined v-if="isTeamSpace" />
+              <UserOutlined v-else />
+              {{ isTeamSpace ? '团队空间' : '个人空间' }}
+            </a-tag>
             <SpaceLevelBadge :level="space.spaceLevel" />
           </div>
-          <p>管理这个空间里的图片</p>
+          <p>{{ isTeamSpace ? '与团队成员共同管理图片' : '管理你的图片与空间容量' }}</p>
         </div>
         <section class="space-usage" aria-label="空间容量">
           <div class="usage-heading">
@@ -32,13 +37,24 @@
         </section>
         <div class="space-header-actions">
           <a-button
+            v-if="isOwner"
+            @click="router.push({ path: '/add_space', query: { id: String(space.id) } })"
+          >
+            <template #icon><SettingOutlined /></template>
+            空间设置
+          </a-button>
+          <a-button v-if="canManageMembers" @click="memberDrawerOpen = true">
+            <template #icon><UsergroupAddOutlined /></template>
+            管理成员
+          </a-button>
+          <a-button
             v-if="canManagePictures || loginUserStore.loginUser.userRole === 'admin'"
             @click="router.push({ path: '/space_analyze', query: { spaceId: String(space.id ?? id) } })"
           >
             <template #icon><BarChartOutlined /></template>
             数据分析
           </a-button>
-          <a-button type="primary" @click="createPicture">
+          <a-button v-if="canUploadPictures" type="primary" @click="createPicture">
             <template #icon><PlusOutlined /></template>
             创建图片
           </a-button>
@@ -111,7 +127,7 @@
           </p>
         </form>
       </section>
-      <div v-if="canManagePictures" class="batch-toolbar">
+      <div v-if="canEditPictures" class="batch-toolbar">
         <a-button
           type="primary"
           ghost
@@ -163,7 +179,7 @@
             "
             @load-more="loadMore"
           >
-            <template v-if="canManagePictures" #cover-action="{ picture }">
+            <template v-if="canEditPictures" #cover-action="{ picture }">
               <a-checkbox
                 class="picture-selection"
                 :class="{
@@ -178,7 +194,7 @@
             </template>
             <template #actions="{ picture }">
               <div class="picture-action-groups">
-                <div v-if="canManagePictures" class="picture-edit-actions">
+                <div v-if="canEditPictures" class="picture-edit-actions">
                   <a-button
                     v-if="canEditImage"
                     type="text"
@@ -239,7 +255,7 @@
                     <span class="utility-label">以图搜图</span>
                   </a-button>
                   <a-popconfirm
-                    v-if="canManagePictures"
+                    v-if="canDeletePictures"
                     title="确定删除这张图片吗？"
                     ok-text="删除"
                     cancel-text="取消"
@@ -327,6 +343,14 @@
       @close="outPaintingOpen = false"
     />
     <ShareModal v-model:open="shareModalOpen" :url="sharePictureUrl" />
+    <TeamMemberManager
+      :open="memberDrawerOpen"
+      :space-id="space?.id"
+      :space-name="space?.spaceName"
+      :space-owner-id="space?.userId"
+      @close="memberDrawerOpen = false"
+      @changed="refreshSpace"
+    />
   </div>
 </template>
 
@@ -342,7 +366,11 @@ import {
   PlusOutlined,
   PictureOutlined,
   SearchOutlined,
+  SettingOutlined,
   ShareAltOutlined,
+  TeamOutlined,
+  UsergroupAddOutlined,
+  UserOutlined,
 } from '@ant-design/icons-vue'
 import { Sketch } from '@ckpack/vue-color'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
@@ -362,7 +390,8 @@ import ShareModal from '@/components/ShareModal.vue'
 import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
 import ImageEditor from '@/components/ImageEditor.vue'
 import OutPaintingModal from '@/components/OutPaintingModal.vue'
-import { SPACE_TYPE_ENUM } from '@/constants/space'
+import TeamMemberManager from '@/components/space/TeamMemberManager.vue'
+import { SPACE_PERMISSION_ENUM, SPACE_TYPE_ENUM } from '@/constants/space'
 import '@/assets/picture-actions.css'
 
 const props = defineProps<{ id: number | string }>()
@@ -422,16 +451,31 @@ let pictureModalTrigger: HTMLElement | null = null
 let imageEditorTrigger: HTMLElement | null = null
 const shareModalOpen = ref(false)
 const sharePictureUrl = ref('')
+const memberDrawerOpen = ref(false)
 let generation = 0
 let pictureGeneration = 0
 
-const canManagePictures = computed(() => {
+const isOwner = computed(() => {
   const ownerId = space.value?.userId ?? space.value?.user?.id
   const userId = loginUserStore.loginUser.id
   return ownerId != null && userId != null && String(ownerId) === String(userId)
 })
+const hasSpacePermission = (permission: string) =>
+  isOwner.value || Boolean(space.value?.permissionList?.includes(permission))
+const isTeamSpace = computed(() => space.value?.spaceType === SPACE_TYPE_ENUM.TEAM)
+const canUploadPictures = computed(() =>
+  hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_UPLOAD),
+)
+const canEditPictures = computed(() => hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_EDIT))
+const canDeletePictures = computed(() =>
+  hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_DELETE),
+)
+const canManageMembers = computed(
+  () => isTeamSpace.value && hasSpacePermission(SPACE_PERMISSION_ENUM.SPACE_USER_MANAGE),
+)
+const canManagePictures = computed(() => canEditPictures.value || canDeletePictures.value)
 const canEditImage = computed(
-  () => canManagePictures.value && space.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE,
+  () => canEditPictures.value && space.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE,
 )
 
 const remainingSize = computed(() => {
@@ -693,7 +737,7 @@ const togglePictureSelection = (id?: number) => {
 }
 
 const openBatchEdit = () => {
-  if (!canManagePictures.value || pictureLoading.value || deleting.value) return
+  if (!canEditPictures.value || pictureLoading.value || deleting.value) return
   const hasSelection = selectedPictureIds.value.length > 0
   batchPictures.value = (
     hasSelection
@@ -722,7 +766,11 @@ const batchSaved = () => {
 
 const searchByPicture = (picture: API.PictureVO) => {
   if (!picture.id || deleting.value) return
-  void router.push({ name: '以图搜图', params: { id: String(picture.id) } })
+  void router.push({
+    name: '以图搜图',
+    params: { id: String(picture.id) },
+    query: { spaceId: String(picture.spaceId ?? props.id) },
+  })
 }
 
 const sharePicture = (picture: API.PictureVO) => {
@@ -732,6 +780,10 @@ const sharePicture = (picture: API.PictureVO) => {
 }
 
 const createPicture = () => {
+  if (!canUploadPictures.value) {
+    message.error('当前角色没有上传图片的权限')
+    return
+  }
   if (!space.value) {
     message.error('空间尚未加载')
     return
@@ -743,7 +795,7 @@ const createPicture = () => {
 }
 
 const editPicture = (picture: API.PictureVO) => {
-  if (!picture.id || !canManagePictures.value || deleting.value) return
+  if (!picture.id || !canEditPictures.value || deleting.value) return
   pictureModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
   editingPictureId.value = String(picture.id)
   pictureModalChanged.value = false
@@ -832,7 +884,7 @@ const pictureSaved = () => {
 }
 
 const deletePicture = async (picture: API.PictureVO) => {
-  if (!picture.id || !canManagePictures.value || deleting.value) return
+  if (!picture.id || !canDeletePictures.value || deleting.value) return
   const requestGeneration = generation
   deleting.value = true
   try {
@@ -874,6 +926,7 @@ watch(
     batchPictures.value = []
     shareModalOpen.value = false
     sharePictureUrl.value = ''
+    memberDrawerOpen.value = false
     void loadSpace()
   },
   { immediate: true },
@@ -1105,12 +1158,18 @@ onBeforeUnmount(() => {
 }
 
 .picture-action-groups {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-  width: 100%;
-  max-width: 236px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
   margin-left: auto;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(8px);
 }
 
 .picture-edit-actions,
@@ -1121,15 +1180,14 @@ onBeforeUnmount(() => {
 .picture-action-groups :deep(.ant-btn),
 .picture-action-groups :deep(.ant-btn:not(:disabled)) {
   min-width: 0;
-  width: 100%;
-  height: 34px;
-  padding-inline: 2px;
+  width: 34px;
+  height: 32px;
+  padding-inline: 0;
   justify-content: center;
   border: 0;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.82);
+  background: transparent;
   color: #fff;
-  backdrop-filter: blur(6px);
   font-size: 12px;
   line-height: 1.2;
 }
@@ -1146,12 +1204,12 @@ onBeforeUnmount(() => {
 
 .picture-action-groups :deep(.ant-btn:not(:disabled):hover),
 .picture-action-groups :deep(.ant-btn:not(:disabled):focus-visible) {
-  background: rgba(15, 23, 42, 0.96);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
 
 .picture-action-groups :deep(.ant-btn:disabled) {
-  background: rgba(15, 23, 42, 0.72);
+  background: transparent;
   color: #cbd5e1;
 }
 
@@ -1167,11 +1225,14 @@ onBeforeUnmount(() => {
 
 @media (hover: none) {
   .picture-action-groups {
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
     max-width: none;
   }
 
   .picture-action-groups :deep(.ant-btn) {
+    width: 100%;
     height: 40px;
   }
 

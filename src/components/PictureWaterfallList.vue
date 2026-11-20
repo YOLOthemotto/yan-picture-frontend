@@ -302,8 +302,9 @@ onBeforeUnmount(() => {
 
 .title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+  margin-bottom: 6px;
 }
 
 .title {
@@ -311,7 +312,6 @@ onBeforeUnmount(() => {
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
-  margin-bottom: 6px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -319,18 +319,23 @@ onBeforeUnmount(() => {
 
 .actions-trigger {
   flex: none;
-  padding: 0 2px;
+  padding: 1px 7px;
   border: 0;
-  background: transparent;
-  color: #595959;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
   font-size: 12px;
-  line-height: 22px;
+  line-height: 20px;
   cursor: pointer;
+  transition:
+    color 0.18s,
+    background 0.18s;
 }
 
 .actions-trigger:hover,
 .actions-trigger:focus-visible {
-  color: #1677ff;
+  color: #0958d9;
+  background: #e6f4ff;
 }
 
 .actions-trigger:focus-visible {
@@ -339,6 +344,7 @@ onBeforeUnmount(() => {
 }
 
 .tags {
+  min-height: 24px;
   margin-bottom: 8px;
   display: flex;
   flex-wrap: wrap;
@@ -361,9 +367,16 @@ onBeforeUnmount(() => {
 }
 
 .author-name {
+  color: #64748b;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.size {
+  flex: none;
+  margin-left: 8px;
+  color: #64748b;
 }
 
 .picture-actions {

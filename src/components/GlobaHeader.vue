@@ -30,7 +30,7 @@
                 <a-menu-item>
                   <router-link to="/my_space">
                     <UserOutlined />
-                    我的空间
+                    个人空间
                   </router-link>
                 </a-menu-item>
                 <a-menu-item @click="doLogout">

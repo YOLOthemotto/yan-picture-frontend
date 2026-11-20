@@ -10,6 +10,11 @@
         <template #message>
           {{ isEditing ? '图片所属空间' : '上传至空间' }}：
           {{ targetSpace?.spaceName || `空间 ID ${targetSpaceId}` }}
+          <a-tag :color="targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM ? 'blue' : 'default'">
+            {{
+              targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM ? '团队空间' : '个人空间'
+            }}
+          </a-tag>
           <SpaceLevelBadge :level="targetSpace?.spaceLevel" />
         </template>
         <template #description>

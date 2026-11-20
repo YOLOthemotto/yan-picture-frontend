@@ -3,6 +3,7 @@ import {
   BarChartOutlined,
   HomeOutlined,
   PictureOutlined,
+  TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons-vue'
 // import HomePage from '@/pages/HomePage.vue'
@@ -42,13 +43,25 @@ const router = createRouter({
     },
     {
       path: '/my_space',
-      name: '我的空间',
+      name: '个人空间',
       component: () => import('@/pages/MySpacePage.vue'),
       meta: {
         showInSider: true,
-        siderTitle: '我的空间',
+        siderTitle: '个人空间',
         siderOrder: 2,
         siderIcon: UserOutlined,
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/add_team_space',
+      name: '创建团队空间',
+      component: () => import('@/pages/AddSpacePage.vue'),
+      meta: {
+        showInSider: true,
+        siderTitle: '创建团队空间',
+        siderOrder: 3,
+        siderIcon: TeamOutlined,
         requiresAuth: true,
       },
     },
@@ -59,7 +72,7 @@ const router = createRouter({
       meta: {
         showInSider: true,
         siderTitle: '数据分析',
-        siderOrder: 3,
+        siderOrder: 5,
         siderIcon: BarChartOutlined,
         requiresAuth: true,
       },
@@ -164,9 +177,7 @@ const router = createRouter({
       name: '空间详情',
       component: () => import('@/pages/SpaceDetailPage.vue'),
       props: true,
-      meta: {
-        activeSiderPath: '/my_space',
-      },
+      meta: {},
     },
     {
       path: '/about',
