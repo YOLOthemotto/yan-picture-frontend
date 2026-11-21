@@ -102,6 +102,7 @@ import {
   PICTURE_EDIT_MESSAGE_TYPE_ENUM,
   type PictureEditAction,
   type PictureEditMessage,
+  type PictureEditState,
 } from '@/constants/picture'
 import PictureEditWebSocket from '@/utils/pictureEditWebSocket'
 import { useLoginUserStore } from '@/stores/useLoginUserStore'
@@ -135,7 +136,14 @@ let horizontalScale = 1
 let disposed = false
 let loadController: AbortController | undefined
 let editSocket: PictureEditWebSocket | undefined
-const pendingEditActions: PictureEditAction[] = []
+let requestTimer: ReturnType<typeof setTimeout> | undefined
+let pendingEnterRequestId = ''
+let hasRenderedEditState = false
+let latestEditState = {
+  rotation: 0,
+  zoom: 1,
+  version: 0,
+} satisfies PictureEditState
 
 const canInteract = computed(
   () =>
@@ -145,8 +153,7 @@ const canInteract = computed(
 )
 const canRequestEdit = computed(
   () =>
-    collaborationEnabled.value &&
-    ['locked', 'released', 'disconnected'].includes(collaborationState.value),
+    collaborationEnabled.value && ['released', 'disconnected'].includes(collaborationState.value),
 )
 const collaborationTitle = computed(() => {
   if (
@@ -181,6 +188,7 @@ const setImageSource = (blob: Blob, local: boolean) => {
   source.value = URL.createObjectURL(blob)
   usingLocalFile.value = local
   ready.value = false
+  hasRenderedEditState = false
   loadError.value = false
   error.value = ''
   horizontalScale = 1
@@ -229,9 +237,14 @@ watch(canInteract, syncEditorInteraction)
 const initializeEditor = () => {
   if (!imageElement.value) return
   cropper.value?.destroy()
+  const naturalAspectRatio =
+    imageElement.value.naturalWidth > 0 && imageElement.value.naturalHeight > 0
+      ? imageElement.value.naturalWidth / imageElement.value.naturalHeight
+      : undefined
   cropper.value = new Cropper(imageElement.value, {
     viewMode: 1,
     autoCropArea: 1,
+    aspectRatio: collaborationEnabled.value ? naturalAspectRatio : undefined,
     background: true,
     responsive: true,
     dragMode: collaborationEnabled.value ? 'none' : 'crop',
@@ -241,9 +254,7 @@ const initializeEditor = () => {
     toggleDragModeOnDblclick: !collaborationEnabled.value,
     ready() {
       ready.value = true
-      const actions = pendingEditActions.splice(0)
-      actions.forEach(applyEditAction)
-      syncEditorInteraction()
+      applyEditState(latestEditState)
     },
   })
 }
@@ -292,9 +303,12 @@ const applyEditAction = (action: PictureEditAction) => {
 
 const performEditAction = (action: PictureEditAction) => {
   if (!canInteract.value) return
-  applyEditAction(action)
-  if (collaborationEnabled.value && !editSocket?.sendAction(action)) {
-    cropper.value?.reset()
+  if (!collaborationEnabled.value) {
+    applyEditAction(action)
+    return
+  }
+  if (!editSocket?.sendAction(action)) {
+    applyEditState(latestEditState)
     collaborationState.value = 'disconnected'
     collaborationNotice.value = '网络连接已中断，画面已恢复；请重新连接后继续。'
   }
@@ -317,10 +331,62 @@ const messageFromEvent = (data: unknown) => {
   return data as PictureEditMessage
 }
 
+const stateFromMessage = (message?: PictureEditMessage): PictureEditState | undefined => {
+  const state = message?.state ?? message?.pictureState
+  if (state) return state
+  if (
+    Number.isFinite(message?.rotation) &&
+    Number.isFinite(message?.zoom) &&
+    Number.isFinite(message?.version)
+  ) {
+    return {
+      rotation: message.rotation as number,
+      zoom: message.zoom as number,
+      version: message.version as number,
+    }
+  }
+  return undefined
+}
+
+const applyEditState = (state: PictureEditState) => {
+  const rotation = Number(state.rotation)
+  const zoom = Number(state.zoom)
+  const version = Number(state.version)
+  if (!Number.isFinite(rotation) || !Number.isFinite(zoom) || !Number.isFinite(version)) return
+  if (version < latestEditState.version) return
+  const normalizedState = {
+    rotation: ((rotation % 360) + 360) % 360,
+    zoom: Math.max(0.1, zoom),
+    version,
+  }
+  const visualStateUnchanged =
+    hasRenderedEditState &&
+    latestEditState.rotation === normalizedState.rotation &&
+    latestEditState.zoom === normalizedState.zoom
+  latestEditState = normalizedState
+  if (visualStateUnchanged) return
+  if (!ready.value || !cropper.value) return
+  cropper.value.enable()
+  cropper.value.reset()
+  cropper.value.rotate(latestEditState.rotation)
+  if (collaborationEnabled.value && imageElement.value?.naturalWidth) {
+    const naturalAspectRatio = imageElement.value.naturalWidth / imageElement.value.naturalHeight
+    cropper.value.setAspectRatio(
+      latestEditState.rotation % 180 === 0 ? naturalAspectRatio : 1 / naturalAspectRatio,
+    )
+  }
+  const fitRatio = cropper.value.getImageData().ratio
+  cropper.value.zoomTo(fitRatio * latestEditState.zoom)
+  syncEditorInteraction()
+  hasRenderedEditState = true
+}
+
 const extractEditorName = (message?: PictureEditMessage) => {
-  const editor = message?.editor ?? message?.editUser ?? message?.user
+  const editor = message?.editor ?? message?.editUser ?? message?.user ?? message?.loginUser
   const explicitName =
     message?.editorName ||
+    message?.editUserName ||
+    message?.editorUserName ||
     message?.userName ||
     editor?.userName ||
     message?.editorAccount ||
@@ -333,17 +399,42 @@ const extractEditorName = (message?: PictureEditMessage) => {
   const matched =
     notice.match(
       /(?:用户(?:名)?|成员)\s*[：:\s]+\s*([^，,。；;\n]+?)(?=\s*(?:正在|开始|进入|编辑|已))/u,
-    ) ?? notice.match(/^([^：:，,。；;\n]+?)\s*正在编辑/u)
-  return matched?.[1]?.trim() ?? ''
+    ) ??
+    notice.match(/^([^：:，,。；;\s]+?)\s*(?:正在编辑|已?进入编辑(?:状态)?)/u) ??
+    notice.match(/^([^：:，,。；;\s]+?)\s+退出(?:了)?编辑/u) ??
+    notice.match(/(?:由|被)\s*([^，,。；;\n]+?)\s*(?:正在)?编辑/u) ??
+    notice.match(/当前编辑者\s*[：:]\s*([^，,。；;\n]+)/u)
+  return matched?.[1]?.replace(/^用户/u, '').trim() ?? ''
 }
 
 const loginUserStore = useLoginUserStore()
 
+const isCurrentUserMessage = (message?: PictureEditMessage) => {
+  const messageUserId = message?.userId ?? message?.editor?.id ?? message?.editUser?.id
+  if (messageUserId != null && loginUserStore.loginUser.id != null) {
+    return String(messageUserId) === String(loginUserStore.loginUser.id)
+  }
+  const messageName = extractEditorName(message)
+  const currentName = loginUserStore.loginUser.userName
+  if (messageName && currentName && currentName !== '未登录') {
+    return messageName === currentName || messageName === loginUserStore.loginUser.userAccount
+  }
+  return undefined
+}
+
+const clearRequestTimer = () => {
+  if (requestTimer) clearTimeout(requestTimer)
+  requestTimer = undefined
+}
+
 const enterEditing = (message?: PictureEditMessage) => {
+  clearRequestTimer()
   currentEditorName.value =
     extractEditorName(message) || loginUserStore.loginUser.userName || '当前用户'
   collaborationState.value = 'editing'
   collaborationNotice.value = '你已获得编辑权，其他成员将实时看到调整。'
+  const state = stateFromMessage(message)
+  if (state) applyEditState(state)
 }
 
 const editActionFromMessage = (message?: PictureEditMessage) => {
@@ -357,13 +448,28 @@ const editActionFromMessage = (message?: PictureEditMessage) => {
 const sendEnterEdit = () => {
   collaborationState.value = 'requesting'
   collaborationNotice.value = '正在确认当前图片是否有人编辑'
-  if (!editSocket?.sendMessage({ type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT })) {
+  pendingEnterRequestId = crypto.randomUUID()
+  if (
+    !editSocket?.sendMessage({
+      type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT,
+      requestId: pendingEnterRequestId,
+    })
+  ) {
     collaborationState.value = 'disconnected'
     collaborationNotice.value = '无法发送编辑请求，请检查连接后重试。'
+    return
   }
+  clearRequestTimer()
+  requestTimer = setTimeout(() => {
+    if (collaborationState.value !== 'requesting') return
+    editSocket?.disconnect()
+    collaborationState.value = 'disconnected'
+    collaborationNotice.value = '编辑权确认超时，请重新连接后再试。'
+  }, 4000)
 }
 
 const releaseEdit = () => {
+  clearRequestTimer()
   if (collaborationState.value === 'editing' || collaborationState.value === 'requesting') {
     editSocket?.sendMessage({ type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT })
   }
@@ -373,6 +479,8 @@ const initializeCollaboration = () => {
   if (!collaborationEnabled.value || props.pictureId == null) return
   collaborationState.value = 'connecting'
   collaborationNotice.value = '正在连接协同编辑服务'
+  latestEditState = { rotation: 0, zoom: 1, version: 0 }
+  hasRenderedEditState = false
   editSocket = new PictureEditWebSocket(props.pictureId)
 
   editSocket.on('open', () => {
@@ -380,15 +488,35 @@ const initializeCollaboration = () => {
   })
   editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (data) => {
     const message = messageFromEvent(data)
+    const state = stateFromMessage(message)
+    if (state) applyEditState(state)
     collaborationNotice.value = message?.message || collaborationNotice.value
-    if (collaborationState.value === 'locked') {
-      currentEditorName.value = extractEditorName(message) || currentEditorName.value
+    if (message?.editor) {
+      currentEditorName.value = extractEditorName(message) || '其他成员'
+      if (collaborationState.value !== 'editing') collaborationState.value = 'locked'
+    } else if (message && 'editor' in message && message.editor === null) {
+      if (collaborationState.value === 'locked') collaborationState.value = 'released'
+      currentEditorName.value = ''
     }
   })
   editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (data) => {
     const message = messageFromEvent(data)
+    const state = stateFromMessage(message)
+    if (state) applyEditState(state)
     if (collaborationState.value === 'requesting') {
-      enterEditing(message)
+      const isOwnResponse =
+        message?.requestId === pendingEnterRequestId &&
+        message?.success === true &&
+        isCurrentUserMessage(message) !== false
+      if (!isOwnResponse) {
+        clearRequestTimer()
+        collaborationState.value = 'locked'
+        currentEditorName.value = extractEditorName(message) || '其他成员'
+        collaborationNotice.value = message?.message || '其他成员抢先获得编辑权。'
+      } else {
+        pendingEnterRequestId = ''
+        enterEditing(message)
+      }
       return
     }
     if (collaborationState.value !== 'editing') {
@@ -399,33 +527,54 @@ const initializeCollaboration = () => {
   })
   editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (data) => {
     const message = messageFromEvent(data)
-    if (collaborationState.value !== 'editing') {
+    const state = stateFromMessage(message)
+    if (state) applyEditState(state)
+    if (
+      message?.success === true &&
+      message.editor == null &&
+      collaborationState.value !== 'editing'
+    ) {
+      clearRequestTimer()
       collaborationState.value = 'released'
       currentEditorName.value = ''
       collaborationNotice.value = message?.message || '编辑位已释放，你可以接手继续编辑。'
+    } else if (message?.editor) {
+      currentEditorName.value = extractEditorName(message) || '其他成员'
+      collaborationState.value = 'locked'
+      collaborationNotice.value = message?.message || '当前图片仍由其他成员编辑。'
     }
   })
   editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (data) => {
     const message = messageFromEvent(data)
-    collaborationState.value = 'locked'
-    currentEditorName.value = extractEditorName(message)
-    collaborationNotice.value =
-      message?.message || '当前已有成员正在编辑，请以只读模式查看调整结果。'
+    const state = stateFromMessage(message)
+    if (state) applyEditState(state)
+    clearRequestTimer()
+    if (message?.editor && isCurrentUserMessage(message) === true) {
+      currentEditorName.value = extractEditorName(message) || currentEditorName.value
+      collaborationState.value = 'editing'
+    } else {
+      collaborationState.value = 'locked'
+      currentEditorName.value = extractEditorName(message)
+      collaborationNotice.value =
+        message?.message || '当前已有成员正在编辑，请以只读模式查看调整结果。'
+    }
   })
   editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (data) => {
     const message = messageFromEvent(data)
     const editAction = editActionFromMessage(message)
-    if (
+    const state = stateFromMessage(message)
+    if (state) applyEditState(state)
+    else if (
       collaborationState.value !== 'editing' &&
       editAction &&
       Object.values(PICTURE_EDIT_ACTION_ENUM).includes(editAction)
-    ) {
-      if (ready.value) applyEditAction(editAction)
-      else pendingEditActions.push(editAction)
-    }
+    )
+      applyEditAction(editAction)
+    currentEditorName.value = extractEditorName(message) || currentEditorName.value
   })
   editSocket.on('error', () => {
     if (disposed) return
+    clearRequestTimer()
     if (collaborationState.value !== 'locked') {
       collaborationState.value = 'disconnected'
       collaborationNotice.value = '协同编辑连接出现问题，请重新连接后继续。'
@@ -433,6 +582,7 @@ const initializeCollaboration = () => {
   })
   editSocket.on('close', (event) => {
     if (disposed) return
+    clearRequestTimer()
     collaborationState.value = 'disconnected'
     currentEditorName.value = ''
     collaborationNotice.value =

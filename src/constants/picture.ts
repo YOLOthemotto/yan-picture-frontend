@@ -74,20 +74,36 @@ export type PictureEditAction =
 export type PictureEditMessageType =
   (typeof PICTURE_EDIT_MESSAGE_TYPE_ENUM)[keyof typeof PICTURE_EDIT_MESSAGE_TYPE_ENUM]
 
+export type PictureEditState = {
+  rotation: number
+  zoom: number
+  version: number
+}
+
 export type PictureEditMessage = {
   type: PictureEditMessageType
+  requestId?: string
   message?: string
+  success?: boolean
   editAction?: PictureEditAction
   action?: PictureEditAction
   pictureEditAction?: PictureEditAction
+  state?: PictureEditState
+  pictureState?: PictureEditState
+  version?: number
+  rotation?: number
+  zoom?: number
   userId?: number | string
   userName?: string
   userAccount?: string
   editorName?: string
   editorAccount?: string
-  user?: PictureEditUser
-  editor?: PictureEditUser
-  editUser?: PictureEditUser
+  editUserName?: string
+  editorUserName?: string
+  user?: PictureEditUser | null
+  editor?: PictureEditUser | null
+  editUser?: PictureEditUser | null
+  loginUser?: PictureEditUser | null
 }
 
 type PictureEditUser = {
