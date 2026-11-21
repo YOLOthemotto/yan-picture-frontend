@@ -6,18 +6,22 @@
     <a-alert v-if="contextError" type="error" show-icon :message="contextError" />
     <a-spin v-else-if="contextLoading" tip="正在加载图片信息" />
     <template v-else>
-      <a-alert v-if="targetSpaceId" type="info" show-icon class="space-notice">
+      <a-alert
+        v-if="targetSpaceId"
+        type="info"
+        show-icon
+        class="space-notice"
+        :class="{ 'space-notice--compact': isEditing }"
+      >
         <template #message>
           {{ isEditing ? '图片所属空间' : '上传至空间' }}：
           {{ targetSpace?.spaceName || `空间 ID ${targetSpaceId}` }}
           <a-tag :color="targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM ? 'blue' : 'default'">
-            {{
-              targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM ? '团队空间' : '个人空间'
-            }}
+            {{ targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM ? '团队空间' : '个人空间' }}
           </a-tag>
           <SpaceLevelBadge :level="targetSpace?.spaceLevel" />
         </template>
-        <template #description>
+        <template v-if="!isEditing" #description>
           <div>空间 ID：{{ targetSpaceId }}</div>
           <div v-if="targetSpace?.maxSize != null && targetSpace.totalSize != null">
             剩余 {{ formatSize(Math.max(0, targetSpace.maxSize - targetSpace.totalSize)) }} · 已用
@@ -30,7 +34,26 @@
           <div v-if="embedded">上传图片后会立即保存，关闭弹窗不会撤销上传。</div>
         </template>
       </a-alert>
-      <a-tabs v-model:activeKey="uploadType">
+      <div v-if="isEditing && picture" class="editing-image-summary">
+        <img
+          v-if="picture.thumbnailUrl || picture.url"
+          :src="picture.url || picture.thumbnailUrl"
+          :alt="picture.name || '图片预览'"
+        />
+        <div class="editing-image-details">
+          <strong>{{ picture.name || '未命名图片' }}</strong>
+          <span v-if="picture.picWidth && picture.picHeight">
+            {{ picture.picWidth }} × {{ picture.picHeight }}
+            <template v-if="picture.picSize != null"> · {{ formatSize(picture.picSize) }}</template>
+          </span>
+          <span v-else>{{ picture.picFormat?.toUpperCase() || '图片预览' }}</span>
+        </div>
+        <a-button v-if="canEditImage" :disabled="uploadBusy || submitting" @click="openImageEditor">
+          <template #icon><PictureOutlined /></template>
+          编辑画面
+        </a-button>
+      </div>
+      <a-tabs v-else v-model:activeKey="uploadType">
         <a-tab-pane
           key="file"
           tab="文件上传"
@@ -60,7 +83,7 @@
           />
         </a-tab-pane>
       </a-tabs>
-      <div v-if="canEditImage" class="image-edit-action">
+      <div v-if="canEditImage && !isEditing" class="image-edit-action">
         <a-button :disabled="uploadBusy || submitting" @click="openImageEditor">
           <template #icon><PictureOutlined /></template>
           编辑画面
@@ -85,44 +108,47 @@
         v-if="picture"
         name="pictureForm"
         layout="vertical"
+        class="picture-form"
         :model="pictureForm"
         @finish="handleSubmit"
       >
-        <a-form-item name="name" label="名称">
-          <a-input v-model:value="pictureForm.name" placeholder="请输入名称" allow-clear />
-        </a-form-item>
-        <a-form-item name="introduction" label="简介">
-          <a-textarea
-            v-model:value="pictureForm.introduction"
-            placeholder="请输入简介"
-            :autoSize="{ minRows: 2, maxRows: 5 }"
-            allow-clear
-          />
-        </a-form-item>
-        <a-form-item name="category" label="分类">
-          <a-auto-complete
-            :options="categoryOptions"
-            v-model:value="pictureForm.category"
-            placeholder="请选择分类"
-            allow-clear
-          />
-        </a-form-item>
-        <a-form-item name="tags" label="标签">
-          <a-select
-            :options="tagOptions"
-            v-model:value="pictureForm.tags"
-            mode="tags"
-            placeholder="请选择标签"
-            allow-clear
-          />
-        </a-form-item>
+        <div class="picture-form-grid">
+          <a-form-item name="name" label="名称">
+            <a-input v-model:value="pictureForm.name" placeholder="请输入名称" allow-clear />
+          </a-form-item>
+          <a-form-item name="category" label="分类">
+            <a-auto-complete
+              :options="categoryOptions"
+              v-model:value="pictureForm.category"
+              placeholder="请选择分类"
+              allow-clear
+            />
+          </a-form-item>
+          <a-form-item name="tags" label="标签" class="picture-form-field--wide">
+            <a-select
+              :options="tagOptions"
+              v-model:value="pictureForm.tags"
+              mode="tags"
+              placeholder="请选择标签"
+              allow-clear
+            />
+          </a-form-item>
+          <a-form-item name="introduction" label="简介" class="picture-form-field--wide">
+            <a-textarea
+              v-model:value="pictureForm.introduction"
+              placeholder="请输入简介"
+              :auto-size="{ minRows: 2, maxRows: 3 }"
+              allow-clear
+            />
+          </a-form-item>
+        </div>
         <a-form-item>
           <a-button
             type="primary"
             html-type="submit"
             :loading="submitting"
             :disabled="uploadBusy"
-            style="width: 100%"
+            class="picture-submit"
           >
             {{ isEditing ? '保存修改' : '创建' }}
           </a-button>
@@ -132,7 +158,9 @@
         :open="imageEditorOpen"
         title="编辑画面"
         :footer="null"
-        :width="900"
+        centered
+        :width="760"
+        wrap-class-name="image-editor-modal"
         :closable="!imageEditorBusy"
         :mask-closable="!imageEditorBusy"
         :keyboard="!imageEditorBusy"
@@ -146,6 +174,8 @@
           :format="picture.picFormat"
           :saving="imageEditorSaving"
           :replace="!isEditing"
+          :picture-id="picture.id"
+          :collaborative="targetSpace?.spaceType === SPACE_TYPE_ENUM.TEAM"
           @busy="imageEditorBusy = $event"
           @cancel="closeImageEditor"
           @save="saveEditedImage"
@@ -172,7 +202,7 @@ import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import SpaceLevelBadge from '@/components/SpaceLevelBadge.vue'
 import { formatSize } from '@/utils'
 import ImageEditor from '@/components/ImageEditor.vue'
-import { SPACE_TYPE_ENUM } from '@/constants/space'
+import { SPACE_PERMISSION_ENUM, SPACE_TYPE_ENUM } from '@/constants/space'
 import { useLoginUserStore } from '@/stores/useLoginUserStore'
 const props = defineProps<{
   embedded?: boolean
@@ -210,14 +240,13 @@ const canEditImage = computed(() => {
   if (!isEditing.value && targetSpaceId.value == null) {
     return picture.value.spaceId == null
   }
-  return (
-    picture.value.spaceId != null &&
-    String(picture.value.spaceId) === targetSpaceId.value &&
-    targetSpace.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE &&
-    ownerId != null &&
-    userId != null &&
-    String(ownerId) === String(userId)
+  const pictureBelongsToTargetSpace =
+    picture.value.spaceId != null && String(picture.value.spaceId) === targetSpaceId.value
+  const isSpaceOwner = ownerId != null && userId != null && String(ownerId) === String(userId)
+  const hasPictureEditPermission = Boolean(
+    targetSpace.value?.permissionList?.includes(SPACE_PERMISSION_ENUM.PICTURE_EDIT),
   )
+  return pictureBelongsToTargetSpace && (isSpaceOwner || hasPictureEditPermission)
 })
 let contextGeneration = 0
 let spaceGeneration = 0
@@ -478,6 +507,60 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
+.space-notice--compact :deep(.ant-alert-description) {
+  display: none;
+}
+
+.editing-image-summary {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 10px;
+  border: 1px solid #e8eef5;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.editing-image-summary img {
+  width: 84px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 7px;
+  background:
+    linear-gradient(45deg, #eef1f5 25%, transparent 25%),
+    linear-gradient(-45deg, #eef1f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eef1f5 75%),
+    linear-gradient(-45deg, transparent 75%, #eef1f5 75%);
+  background-color: #fff;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+}
+
+.editing-image-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editing-image-details strong {
+  overflow: hidden;
+  color: #1f2937;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editing-image-details span {
+  color: #667085;
+  font-size: 12px;
+}
+
 .image-edit-action {
   display: flex;
   align-items: center;
@@ -492,5 +575,61 @@ onBeforeUnmount(() => {
 
 .copy-notice {
   margin-bottom: 16px;
+}
+
+.picture-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+.picture-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.picture-submit {
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  .editing-image-summary {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+
+  .editing-image-summary img {
+    width: 84px;
+    height: 64px;
+  }
+
+  .editing-image-summary :deep(.ant-btn) {
+    grid-column: 1 / -1;
+  }
+
+  .picture-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .picture-form-field--wide {
+    grid-column: auto;
+  }
+}
+</style>
+
+<style>
+.picture-edit-modal .ant-modal-body,
+.image-editor-modal .ant-modal-body {
+  padding: 16px 20px;
+}
+
+.picture-edit-modal .ant-modal-body {
+  max-height: calc(100vh - 136px);
+  overflow-y: auto;
+}
+
+@media (max-width: 560px) {
+  .picture-edit-modal .ant-modal-body,
+  .image-editor-modal .ant-modal-body {
+    padding: 14px;
+  }
 }
 </style>

@@ -86,7 +86,7 @@
               <template #icon><PictureOutlined /></template>
               AI 扩图
             </a-button>
-            <a-button danger type="text" @click="doDelete" :disabled="!canEdit">
+            <a-button danger type="text" @click="doDelete" :disabled="!canDelete">
               <template #icon><DeleteOutlined /></template>
               删除
             </a-button>
@@ -115,6 +115,7 @@ import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { useRouter } from 'vue-router'
 import ShareModal from '@/components/ShareModal.vue'
 import OutPaintingModal from '@/components/OutPaintingModal.vue'
+import { SPACE_PERMISSION_ENUM } from '@/constants/space'
 import '@/assets/picture-actions.css'
 
 interface Props {
@@ -130,15 +131,25 @@ const loginUserStore = useLoginUserStore()
 const pictureColor = computed(() => picture.value.picColor?.trim().replace(/^0x/i, '#'))
 
 const canEdit = computed(() => {
-  // 编辑逻辑
   const loginUser = loginUserStore.loginUser
-  // 未登录不可编辑
-  if (!loginUser.id) {
-    return false
-  }
-  // 只有本人或管理员可以编辑
+  if (!loginUser.id) return false
   const user = picture.value.user || {}
-  return loginUser.id === user.id || loginUser.userRole === 'admin'
+  return (
+    loginUser.id === user.id ||
+    loginUser.userRole === 'admin' ||
+    Boolean(picture.value.permissionList?.includes(SPACE_PERMISSION_ENUM.PICTURE_EDIT))
+  )
+})
+
+const canDelete = computed(() => {
+  const loginUser = loginUserStore.loginUser
+  if (!loginUser.id) return false
+  const user = picture.value.user || {}
+  return (
+    loginUser.id === user.id ||
+    loginUser.userRole === 'admin' ||
+    Boolean(picture.value.permissionList?.includes(SPACE_PERMISSION_ENUM.PICTURE_DELETE))
+  )
 })
 
 // 获取图片详情
@@ -168,13 +179,14 @@ const doDownload = () => {
 
 // 编辑图片
 const doEdit = () => {
+  if (!canEdit.value) return
   router.push(`/add_picture?id=${picture.value.id}`)
 }
 
 // 删除数据
 const doDelete = async () => {
   const id = picture.value.id
-  if (!id) {
+  if (!id || !canDelete.value) {
     return
   }
   const res = await deletePictureUsingPost({ id })

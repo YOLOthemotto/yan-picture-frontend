@@ -49,7 +49,9 @@
           </a-button>
           <a-button
             v-if="canManagePictures || loginUserStore.loginUser.userRole === 'admin'"
-            @click="router.push({ path: '/space_analyze', query: { spaceId: String(space.id ?? id) } })"
+            @click="
+              router.push({ path: '/space_analyze', query: { spaceId: String(space.id ?? id) } })
+            "
           >
             <template #icon><BarChartOutlined /></template>
             数据分析
@@ -284,12 +286,14 @@
       :open="pictureModalOpen"
       :title="editingPictureId ? '编辑图片' : '创建图片'"
       :footer="null"
+      centered
       :closable="!pictureModalBusy"
       :mask-closable="!pictureModalBusy"
       :keyboard="!pictureModalBusy"
       :focus-trigger-after-close="false"
-      :width="720"
+      :width="680"
       destroy-on-close
+      wrap-class-name="picture-edit-modal"
       @cancel="closePictureModal"
       @after-close="restorePictureFocus"
     >
@@ -316,12 +320,14 @@
       :open="imageEditorOpen"
       title="编辑画面"
       :footer="null"
-      :width="900"
+      centered
+      :width="760"
       :closable="!imageEditorBusy"
       :mask-closable="!imageEditorBusy"
       :keyboard="!imageEditorBusy"
       :focus-trigger-after-close="false"
       destroy-on-close
+      wrap-class-name="image-editor-modal"
       @cancel="closeImageEditor"
       @after-close="restoreImageEditorFocus"
     >
@@ -331,6 +337,8 @@
         :name="imageToEdit.name"
         :format="imageToEdit.picFormat"
         :saving="imageEditorSaving"
+        :picture-id="imageToEdit.id"
+        :collaborative="isTeamSpace"
         @busy="imageEditorBusy = $event"
         @cancel="closeImageEditor"
         @save="saveEditedImage"
@@ -463,20 +471,14 @@ const isOwner = computed(() => {
 const hasSpacePermission = (permission: string) =>
   isOwner.value || Boolean(space.value?.permissionList?.includes(permission))
 const isTeamSpace = computed(() => space.value?.spaceType === SPACE_TYPE_ENUM.TEAM)
-const canUploadPictures = computed(() =>
-  hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_UPLOAD),
-)
+const canUploadPictures = computed(() => hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_UPLOAD))
 const canEditPictures = computed(() => hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_EDIT))
-const canDeletePictures = computed(() =>
-  hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_DELETE),
-)
+const canDeletePictures = computed(() => hasSpacePermission(SPACE_PERMISSION_ENUM.PICTURE_DELETE))
 const canManageMembers = computed(
   () => isTeamSpace.value && hasSpacePermission(SPACE_PERMISSION_ENUM.SPACE_USER_MANAGE),
 )
 const canManagePictures = computed(() => canEditPictures.value || canDeletePictures.value)
-const canEditImage = computed(
-  () => canEditPictures.value && space.value?.spaceType === SPACE_TYPE_ENUM.PRIVATE,
-)
+const canEditImage = computed(() => canEditPictures.value)
 
 const remainingSize = computed(() => {
   if (space.value?.maxSize == null || space.value.totalSize == null) return undefined
@@ -789,14 +791,16 @@ const createPicture = () => {
     return
   }
   editingPictureId.value = undefined
-  pictureModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  pictureModalTrigger =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null
   pictureModalChanged.value = false
   pictureModalOpen.value = true
 }
 
 const editPicture = (picture: API.PictureVO) => {
   if (!picture.id || !canEditPictures.value || deleting.value) return
-  pictureModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  pictureModalTrigger =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null
   editingPictureId.value = String(picture.id)
   pictureModalChanged.value = false
   pictureModalOpen.value = true

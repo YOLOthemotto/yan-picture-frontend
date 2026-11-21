@@ -35,7 +35,7 @@ export const PICTURE_EDIT_MESSAGE_TYPE_ENUM = {
   ENTER_EDIT: 'ENTER_EDIT',
   EXIT_EDIT: 'EXIT_EDIT',
   EDIT_ACTION: 'EDIT_ACTION',
-}
+} as const
 
 /**
  * 图片编辑消息类型映射
@@ -56,7 +56,7 @@ export const PICTURE_EDIT_ACTION_ENUM = {
   ZOOM_OUT: 'ZOOM_OUT',
   ROTATE_LEFT: 'ROTATE_LEFT',
   ROTATE_RIGHT: 'ROTATE_RIGHT',
-}
+} as const
 
 /**
  * 图片编辑操作映射
@@ -66,4 +66,32 @@ export const PICTURE_EDIT_ACTION_MAP = {
   ZOOM_OUT: '缩小操作',
   ROTATE_LEFT: '左旋操作',
   ROTATE_RIGHT: '右旋操作',
+}
+
+export type PictureEditAction =
+  (typeof PICTURE_EDIT_ACTION_ENUM)[keyof typeof PICTURE_EDIT_ACTION_ENUM]
+
+export type PictureEditMessageType =
+  (typeof PICTURE_EDIT_MESSAGE_TYPE_ENUM)[keyof typeof PICTURE_EDIT_MESSAGE_TYPE_ENUM]
+
+export type PictureEditMessage = {
+  type: PictureEditMessageType
+  message?: string
+  editAction?: PictureEditAction
+  action?: PictureEditAction
+  pictureEditAction?: PictureEditAction
+  userId?: number | string
+  userName?: string
+  userAccount?: string
+  editorName?: string
+  editorAccount?: string
+  user?: PictureEditUser
+  editor?: PictureEditUser
+  editUser?: PictureEditUser
+}
+
+type PictureEditUser = {
+  id?: number | string
+  userName?: string
+  userAccount?: string
 }

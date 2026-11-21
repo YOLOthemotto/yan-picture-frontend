@@ -1,12 +1,35 @@
 <template>
   <div class="image-editor">
-    <p class="editor-hint">
-      {{
-        replace
-          ? '拖动选区裁剪图片，保存后会更新当前上传的图片。'
-          : '拖动选区裁剪图片，保存后会在当前空间创建新图片，原图保持不变。'
-      }}
-    </p>
+    <div
+      v-if="collaborationEnabled"
+      class="collaboration-status"
+      :class="`collaboration-status--${collaborationState}`"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="status-indicator" aria-hidden="true"></span>
+      <div>
+        <strong>{{ collaborationTitle }}</strong>
+        <span>{{ collaborationNotice }}</span>
+      </div>
+      <a-button v-if="canRequestEdit" size="small" type="link" @click="requestEdit">
+        {{ collaborationState === 'disconnected' ? '重新连接' : '接手编辑' }}
+      </a-button>
+    </div>
+    <div class="editor-context">
+      <p>
+        {{
+          collaborationEnabled
+            ? canInteract
+              ? '旋转与缩放会实时同步给正在查看的成员。'
+              : '当前图片由其他成员编辑，你可以实时观看调整结果。'
+            : replace
+              ? '拖动选区裁剪图片，保存后会更新当前上传的图片。'
+              : '拖动选区裁剪图片，保存后会在当前空间创建新图片，原图保持不变。'
+        }}
+      </p>
+      <span v-if="ready && imageDimensions">{{ imageDimensions }}</span>
+    </div>
     <div class="editor-stage">
       <img
         v-if="source"
@@ -28,16 +51,41 @@
       </label>
     </div>
     <div class="editor-toolbar" role="group" aria-label="图片编辑工具">
-      <a-button :disabled="!ready || busy" @click="cropper?.rotate(-90)">左旋转</a-button>
-      <a-button :disabled="!ready || busy" @click="cropper?.rotate(90)">右旋转</a-button>
-      <a-button :disabled="!ready || busy" @click="flipHorizontal">水平翻转</a-button>
-      <a-button :disabled="!ready || busy" @click="cropper?.zoom(0.1)">放大</a-button>
-      <a-button :disabled="!ready || busy" @click="cropper?.zoom(-0.1)">缩小</a-button>
-      <a-button :disabled="!ready || busy" @click="reset">重置</a-button>
+      <a-button
+        :disabled="!canInteract"
+        @click="performEditAction(PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT)"
+      >
+        左旋转
+      </a-button>
+      <a-button
+        :disabled="!canInteract"
+        @click="performEditAction(PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT)"
+      >
+        右旋转
+      </a-button>
+      <a-button
+        :disabled="!canInteract"
+        @click="performEditAction(PICTURE_EDIT_ACTION_ENUM.ZOOM_IN)"
+      >
+        放大
+      </a-button>
+      <a-button
+        :disabled="!canInteract"
+        @click="performEditAction(PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT)"
+      >
+        缩小
+      </a-button>
+      <template v-if="!collaborationEnabled">
+        <a-button :disabled="!canInteract" @click="flipHorizontal">水平翻转</a-button>
+        <a-button :disabled="!canInteract" @click="reset">重置</a-button>
+      </template>
     </div>
     <div class="editor-footer">
-      <a-button :disabled="busy" @click="emit('cancel')">取消</a-button>
-      <a-button type="primary" :disabled="!ready" :loading="busy" @click="save">
+      <span class="editor-footer-hint">
+        {{ collaborationEnabled ? (canInteract ? '仅你可编辑' : '只读观摩') : '调整完成后保存' }}
+      </span>
+      <a-button :disabled="busy" @click="cancel">取消</a-button>
+      <a-button type="primary" :disabled="!canInteract" :loading="busy" @click="save">
         {{ replace ? '保存画面' : '保存为新图片' }}
       </a-button>
     </div>
@@ -45,10 +93,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 import { downloadImage } from '@/utils'
+import {
+  PICTURE_EDIT_ACTION_ENUM,
+  PICTURE_EDIT_MESSAGE_TYPE_ENUM,
+  type PictureEditAction,
+  type PictureEditMessage,
+} from '@/constants/picture'
+import PictureEditWebSocket from '@/utils/pictureEditWebSocket'
+import { useLoginUserStore } from '@/stores/useLoginUserStore'
 
 const props = defineProps<{
   src: string
@@ -56,6 +112,8 @@ const props = defineProps<{
   format?: string
   saving?: boolean
   replace?: boolean
+  pictureId?: number
+  collaborative?: boolean
 }>()
 const emit = defineEmits<{ save: [file: File]; cancel: []; busy: [value: boolean] }>()
 const imageElement = ref<HTMLImageElement>()
@@ -67,9 +125,54 @@ const exporting = ref(false)
 const busy = computed(() => exporting.value || !!props.saving)
 const error = ref('')
 const loadError = ref(false)
+const currentEditorName = ref('')
+const collaborationEnabled = computed(() => Boolean(props.collaborative && props.pictureId != null))
+const collaborationState = ref<
+  'connecting' | 'requesting' | 'editing' | 'locked' | 'released' | 'disconnected'
+>('connecting')
+const collaborationNotice = ref('正在连接协同编辑服务')
 let horizontalScale = 1
 let disposed = false
 let loadController: AbortController | undefined
+let editSocket: PictureEditWebSocket | undefined
+const pendingEditActions: PictureEditAction[] = []
+
+const canInteract = computed(
+  () =>
+    ready.value &&
+    !busy.value &&
+    (!collaborationEnabled.value || collaborationState.value === 'editing'),
+)
+const canRequestEdit = computed(
+  () =>
+    collaborationEnabled.value &&
+    ['locked', 'released', 'disconnected'].includes(collaborationState.value),
+)
+const collaborationTitle = computed(() => {
+  if (
+    currentEditorName.value &&
+    (collaborationState.value === 'editing' || collaborationState.value === 'locked')
+  ) {
+    return `${currentEditorName.value} 正在编辑`
+  }
+  switch (collaborationState.value) {
+    case 'editing':
+      return '协同编辑中'
+    case 'locked':
+      return '只读观摩'
+    case 'released':
+      return '编辑位已释放'
+    case 'disconnected':
+      return '连接已中断'
+    default:
+      return '正在进入编辑'
+  }
+})
+const imageDimensions = computed(() => {
+  const data = cropper.value?.getImageData()
+  if (!data?.naturalWidth || !data?.naturalHeight) return ''
+  return `${data.naturalWidth} × ${data.naturalHeight}`
+})
 
 const setImageSource = (blob: Blob, local: boolean) => {
   cropper.value?.destroy()
@@ -115,6 +218,14 @@ watch(
   { immediate: true },
 )
 
+const syncEditorInteraction = () => {
+  if (!cropper.value || !ready.value) return
+  if (canInteract.value) cropper.value.enable()
+  else cropper.value.disable()
+}
+
+watch(canInteract, syncEditorInteraction)
+
 const initializeEditor = () => {
   if (!imageElement.value) return
   cropper.value?.destroy()
@@ -123,8 +234,16 @@ const initializeEditor = () => {
     autoCropArea: 1,
     background: true,
     responsive: true,
+    dragMode: collaborationEnabled.value ? 'none' : 'crop',
+    cropBoxMovable: !collaborationEnabled.value,
+    cropBoxResizable: !collaborationEnabled.value,
+    zoomOnWheel: !collaborationEnabled.value,
+    toggleDragModeOnDblclick: !collaborationEnabled.value,
     ready() {
       ready.value = true
+      const actions = pendingEditActions.splice(0)
+      actions.forEach(applyEditAction)
+      syncEditorInteraction()
     },
   })
 }
@@ -150,18 +269,196 @@ const selectLocalImage = (event: Event) => {
   setImageSource(file, true)
 }
 
+const applyEditAction = (action: PictureEditAction) => {
+  if (!cropper.value) return
+  const shouldDisableAfter = collaborationEnabled.value && collaborationState.value !== 'editing'
+  cropper.value.enable()
+  switch (action) {
+    case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN:
+      cropper.value.zoom(0.1)
+      break
+    case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT:
+      cropper.value.zoom(-0.1)
+      break
+    case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT:
+      cropper.value.rotate(-90)
+      break
+    case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT:
+      cropper.value.rotate(90)
+      break
+  }
+  if (shouldDisableAfter) cropper.value.disable()
+}
+
+const performEditAction = (action: PictureEditAction) => {
+  if (!canInteract.value) return
+  applyEditAction(action)
+  if (collaborationEnabled.value && !editSocket?.sendAction(action)) {
+    cropper.value?.reset()
+    collaborationState.value = 'disconnected'
+    collaborationNotice.value = '网络连接已中断，画面已恢复；请重新连接后继续。'
+  }
+}
+
 const flipHorizontal = () => {
+  if (!canInteract.value) return
   horizontalScale = -horizontalScale
   cropper.value?.scaleX(horizontalScale)
 }
 
 const reset = () => {
+  if (!canInteract.value) return
   cropper.value?.reset()
   horizontalScale = 1
 }
 
+const messageFromEvent = (data: unknown) => {
+  if (!data || typeof data !== 'object' || !('type' in data)) return undefined
+  return data as PictureEditMessage
+}
+
+const extractEditorName = (message?: PictureEditMessage) => {
+  const editor = message?.editor ?? message?.editUser ?? message?.user
+  const explicitName =
+    message?.editorName ||
+    message?.userName ||
+    editor?.userName ||
+    message?.editorAccount ||
+    message?.userAccount ||
+    editor?.userAccount
+  if (explicitName) return explicitName.trim()
+
+  const notice = message?.message?.trim()
+  if (!notice) return ''
+  const matched =
+    notice.match(
+      /(?:用户(?:名)?|成员)\s*[：:\s]+\s*([^，,。；;\n]+?)(?=\s*(?:正在|开始|进入|编辑|已))/u,
+    ) ?? notice.match(/^([^：:，,。；;\n]+?)\s*正在编辑/u)
+  return matched?.[1]?.trim() ?? ''
+}
+
+const loginUserStore = useLoginUserStore()
+
+const enterEditing = (message?: PictureEditMessage) => {
+  currentEditorName.value =
+    extractEditorName(message) || loginUserStore.loginUser.userName || '当前用户'
+  collaborationState.value = 'editing'
+  collaborationNotice.value = '你已获得编辑权，其他成员将实时看到调整。'
+}
+
+const editActionFromMessage = (message?: PictureEditMessage) => {
+  const action =
+    message?.editAction ?? message?.action ?? message?.pictureEditAction ?? message?.message
+  return action && Object.values(PICTURE_EDIT_ACTION_ENUM).includes(action as PictureEditAction)
+    ? (action as PictureEditAction)
+    : undefined
+}
+
+const sendEnterEdit = () => {
+  collaborationState.value = 'requesting'
+  collaborationNotice.value = '正在确认当前图片是否有人编辑'
+  if (!editSocket?.sendMessage({ type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT })) {
+    collaborationState.value = 'disconnected'
+    collaborationNotice.value = '无法发送编辑请求，请检查连接后重试。'
+  }
+}
+
+const releaseEdit = () => {
+  if (collaborationState.value === 'editing' || collaborationState.value === 'requesting') {
+    editSocket?.sendMessage({ type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT })
+  }
+}
+
+const initializeCollaboration = () => {
+  if (!collaborationEnabled.value || props.pictureId == null) return
+  collaborationState.value = 'connecting'
+  collaborationNotice.value = '正在连接协同编辑服务'
+  editSocket = new PictureEditWebSocket(props.pictureId)
+
+  editSocket.on('open', () => {
+    if (!disposed) sendEnterEdit()
+  })
+  editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (data) => {
+    const message = messageFromEvent(data)
+    collaborationNotice.value = message?.message || collaborationNotice.value
+    if (collaborationState.value === 'locked') {
+      currentEditorName.value = extractEditorName(message) || currentEditorName.value
+    }
+  })
+  editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (data) => {
+    const message = messageFromEvent(data)
+    if (collaborationState.value === 'requesting') {
+      enterEditing(message)
+      return
+    }
+    if (collaborationState.value !== 'editing') {
+      collaborationState.value = 'locked'
+      currentEditorName.value = extractEditorName(message)
+      collaborationNotice.value = message?.message || '其他成员正在编辑，调整会自动同步到此处。'
+    }
+  })
+  editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (data) => {
+    const message = messageFromEvent(data)
+    if (collaborationState.value !== 'editing') {
+      collaborationState.value = 'released'
+      currentEditorName.value = ''
+      collaborationNotice.value = message?.message || '编辑位已释放，你可以接手继续编辑。'
+    }
+  })
+  editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (data) => {
+    const message = messageFromEvent(data)
+    collaborationState.value = 'locked'
+    currentEditorName.value = extractEditorName(message)
+    collaborationNotice.value =
+      message?.message || '当前已有成员正在编辑，请以只读模式查看调整结果。'
+  })
+  editSocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (data) => {
+    const message = messageFromEvent(data)
+    const editAction = editActionFromMessage(message)
+    if (
+      collaborationState.value !== 'editing' &&
+      editAction &&
+      Object.values(PICTURE_EDIT_ACTION_ENUM).includes(editAction)
+    ) {
+      if (ready.value) applyEditAction(editAction)
+      else pendingEditActions.push(editAction)
+    }
+  })
+  editSocket.on('error', () => {
+    if (disposed) return
+    if (collaborationState.value !== 'locked') {
+      collaborationState.value = 'disconnected'
+      collaborationNotice.value = '协同编辑连接出现问题，请重新连接后继续。'
+    }
+  })
+  editSocket.on('close', (event) => {
+    if (disposed) return
+    collaborationState.value = 'disconnected'
+    currentEditorName.value = ''
+    collaborationNotice.value =
+      event instanceof CloseEvent && event.code === 1000
+        ? '协同编辑已结束。'
+        : '协同编辑连接已断开，请重新连接。'
+  })
+  editSocket.connect()
+}
+
+const requestEdit = () => {
+  if (collaborationState.value === 'disconnected') {
+    editSocket?.disconnect()
+    initializeCollaboration()
+    return
+  }
+  sendEnterEdit()
+}
+
+const cancel = () => {
+  releaseEdit()
+  emit('cancel')
+}
+
 const save = () => {
-  if (!cropper.value || busy.value) return
+  if (!cropper.value || !canInteract.value) return
   error.value = ''
   exporting.value = true
   emit('busy', true)
@@ -196,24 +493,98 @@ const save = () => {
   }
 }
 
+onMounted(initializeCollaboration)
 onBeforeUnmount(() => {
   disposed = true
+  releaseEdit()
+  editSocket?.disconnect()
   cropper.value?.destroy()
   if (source.value) URL.revokeObjectURL(source.value)
 })
 </script>
 
 <style scoped>
-.editor-hint {
+.image-editor {
+  min-width: 0;
+}
+
+.collaboration-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border: 1px solid #d9e3f0;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.collaboration-status > div {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collaboration-status strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.collaboration-status span:not(.status-indicator) {
   color: #595959;
-  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.status-indicator {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1677ff;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.14);
+}
+
+.collaboration-status--locked .status-indicator,
+.collaboration-status--released .status-indicator {
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14);
+}
+
+.collaboration-status--disconnected .status-indicator {
+  background: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.editor-context {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.editor-context p {
+  margin: 0;
+  color: #595959;
+  font-size: 13px;
+}
+
+.editor-context span {
+  flex: 0 0 auto;
+  color: #7a7a7a;
+  font-size: 12px;
 }
 
 .editor-stage {
   position: relative;
-  height: min(52vh, 480px);
-  min-height: 240px;
-  background: #f0f0f0;
+  height: min(43vh, 380px);
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #eef1f5;
 }
 
 .editor-stage img {
@@ -229,12 +600,9 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.editor-error {
-  margin-top: 12px;
-}
-
+.editor-error,
 .editor-recovery {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .editor-recovery p {
@@ -266,15 +634,56 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
-.editor-toolbar,
-.editor-footer {
+.editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .editor-footer {
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.editor-footer-hint {
+  margin-right: auto;
+  color: #7a7a7a;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .editor-context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .editor-stage {
+    height: 36vh;
+    min-height: 200px;
+  }
+
+  .editor-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-toolbar :deep(.ant-btn) {
+    width: 100%;
+  }
+
+  .editor-footer {
+    flex-wrap: wrap;
+  }
+
+  .editor-footer-hint {
+    width: 100%;
+  }
 }
 </style>
